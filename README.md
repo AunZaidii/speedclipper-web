@@ -61,7 +61,9 @@ cd server && npm test      # 28 tests: auth, creators, worker flow, commands, se
 
 ## Deploy (free): MongoDB Atlas + Render
 1. **Atlas:** create a free M0 cluster and a database user. Under Network Access allow `0.0.0.0/0` (Render has no fixed IP),
-   then copy the `mongodb+srv://…` connection string.
+   then copy the `mongodb+srv://…` connection string. Optional: `cd server`, set `MONGODB_URI`, then
+   `npm run db:setup` creates every collection and index up front and prints a report (the server also builds
+   missing indexes on start, so this is safe to skip or re-run).
 2. **Render:** New → Blueprint → this repo (`render.yaml`). Set `MONGODB_URI`, `PUBLIC_URL` (your `https://….onrender.com`),
    and `ENCRYPTION_KEY` (64 hex chars: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
    `JWT_SECRET` and `WORKER_KEY` are generated for you.

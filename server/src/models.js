@@ -71,6 +71,10 @@ const ClipSchema = new Schema({
   publications: { type: [PublicationSchema], default: [] },
 }, { timestamps: true });
 ClipSchema.index({ createdAt: -1 });
+ClipSchema.index({ status: 1, createdAt: -1 });                                     // Clips tabs, Review queue
+ClipSchema.index({ creator: 1, createdAt: -1 });                                    // creator filter
+ClipSchema.index({ "publications.platform": 1, "publications.status": 1 });         // publish queue, failed uploads
+ClipSchema.index({ publishToken: 1 }, { sparse: true });                            // one-time Instagram fetch URL
 
 const AccountSchema = new Schema({
   platform: { type: String, enum: ["youtube", "instagram"], required: true, unique: true },
@@ -109,6 +113,7 @@ const EventSchema = new Schema({
   at: { type: Date, default: Date.now },
 });
 EventSchema.index({ at: -1 });
+EventSchema.index({ type: 1, at: -1 });                                             // Activity filters
 EventSchema.index({ at: 1 }, { expireAfterSeconds: 60 * 86400 });   // keep 60 days
 
 const LiveSessionSchema = new Schema({
@@ -126,6 +131,7 @@ const LiveSessionSchema = new Schema({
   moments: Number,
 });
 LiveSessionSchema.index({ startedAt: -1 });
+LiveSessionSchema.index({ endedAt: 1 });                                            // streams still recording
 
 const CommandSchema = new Schema({
   type: { type: String, enum: ["check_now", "stop_session", "pause", "resume", "vod"], required: true },
