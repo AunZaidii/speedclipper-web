@@ -56,8 +56,9 @@ function EditCreator({ creator, onClose, onSaved }) {
       <Field label="Video layout">
         <select value={f.layout} onChange={set("layout")}>
           <option value="">Default (from Settings)</option>
-          <option value="blur_background">Blurred background (gaming)</option>
-          <option value="center_crop">Center crop, full screen (IRL)</option>
+          <option value="facecam_split">Facecam + gameplay (no blur)</option>
+          <option value="center_crop">Zoom to fill the screen</option>
+          <option value="blur_background">Blurred background</option>
         </select>
       </Field>
       <div className="flex gap-2"><Button variant="primary" onClick={save}>Save</Button><Button onClick={onClose}>Cancel</Button></div>

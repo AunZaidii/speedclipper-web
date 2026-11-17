@@ -22,7 +22,7 @@ const GROUPS = [
     ["postRollSeconds", "Seconds after the peak", "num"],
   ]],
   ["Editing", [
-    ["layout", "Default layout", ["blur_background", "center_crop"]],
+    ["layout", "Video layout", [["facecam_split", "Facecam + gameplay (no blur)"], ["center_crop", "Zoom to fill the screen"], ["blur_background", "Blurred background"]]],
     ["captions", "Burned-in captions", "bool"],
     ["emoji", "Emoji pop-ups on captions", "bool"],
     ["hookText", "Hook text at the start", "bool"],
@@ -119,7 +119,7 @@ export default function Settings() {
           <Card key={g} title={g}>
             <div className="space-y-3">
               {items.map(([k, label, t]) => t === "bool" ? <div key={k}><Toggle checked={s[k]} onChange={(v) => set(k, v)} label={label} /></div>
-                : Array.isArray(t) ? <Field key={k} label={label}><select value={s[k]} onChange={(e) => set(k, e.target.value)}>{t.map((o) => <option key={o}>{o}</option>)}</select></Field>
+                : Array.isArray(t) ? <Field key={k} label={label}><select value={s[k]} onChange={(e) => set(k, e.target.value)}>{t.map((o) => Array.isArray(o) ? <option key={o[0]} value={o[0]}>{o[1]}</option> : <option key={o}>{o}</option>)}</select></Field>
                 : t === "list" ? <Field key={k} label={label}><input value={(s[k] || []).join(", ")} onChange={(e) => set(k, e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} /></Field>
                 : <Field key={k} label={label}><input type={t === "text" ? "text" : "number"} step="any" value={s[k] ?? ""} onChange={(e) => set(k, t === "text" ? e.target.value : e.target.value === "" ? "" : Number(e.target.value))} /></Field>)}
             </div>

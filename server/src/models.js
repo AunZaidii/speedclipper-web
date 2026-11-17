@@ -19,7 +19,7 @@ const CreatorSchema = new Schema({
   creditLine: { type: String, required: true },
   tags: { type: [String], default: [] },
   hashtags: { type: String, default: "" },
-  layout: { type: String, enum: ["", "blur_background", "center_crop"], default: "" },
+  layout: { type: String, enum: ["", "facecam_split", "center_crop", "blur_background"], default: "" },
   targets: {
     youtube: { type: Boolean, default: true },
     instagram: { type: Boolean, default: false },
@@ -167,7 +167,7 @@ export const DEFAULT_SETTINGS = {
   preRollSeconds: 20,
   postRollSeconds: 10,
   minScoreToPublish: 7,
-  layout: "blur_background",
+  layout: "facecam_split",          // facecam on top + gameplay below, no blur
   emoji: true,
   hookText: true,
   captions: true,

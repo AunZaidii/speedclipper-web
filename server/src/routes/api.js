@@ -71,7 +71,7 @@ const creatorPatch = z.object({
   name: z.string().trim().min(1).max(80), enabled: z.boolean(), autoUpload: z.boolean(),
   creditLine: z.string().trim().min(1, "credit line is required").max(300),
   tags: z.union([z.array(z.string()), z.string()]).transform((t) => (Array.isArray(t) ? t : t.split(",")).map((x) => x.trim()).filter(Boolean).slice(0, 30)),
-  hashtags: z.string().max(300), layout: z.enum(["", "blur_background", "center_crop"]),
+  hashtags: z.string().max(300), layout: z.enum(["", "facecam_split", "center_crop", "blur_background"]),
   targets: z.object({ youtube: z.boolean(), instagram: z.boolean() }).partial(),
 }).partial().strict();
 
@@ -197,7 +197,7 @@ const settingsSchema = z.object({
   maxClipsPerHour: z.coerce.number().int().min(1).max(60),
   preRollSeconds: z.coerce.number().min(0).max(60), postRollSeconds: z.coerce.number().min(0).max(60),
   minScoreToPublish: z.coerce.number().min(1).max(10),
-  layout: z.enum(["blur_background", "center_crop"]),
+  layout: z.enum(["facecam_split", "center_crop", "blur_background"]),
   emoji: z.boolean(), hookText: z.boolean(), captions: z.boolean(),
   watermarkText: z.string().max(40),
   defaultTags: z.union([z.array(z.string()), z.string()]).transform((t) => (Array.isArray(t) ? t : t.split(",")).map((x) => x.trim()).filter(Boolean).slice(0, 20)),
