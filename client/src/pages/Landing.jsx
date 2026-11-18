@@ -240,11 +240,11 @@ export default function Landing({ signupOpen = true }) {
           <Feature id="features" img="/landing/desk.webp" alt="A microphone next to a glowing gaming monitor"
             title="Knows when something" accent="just happened."
             text="When chat suddenly explodes, that's usually the moment. SpeedClipper measures it live and cuts the clip with a few seconds of build-up."
-            points={["Spots chat spikes as they happen", "Writes a title for every clip", "Skips clips that are mostly music"]} />
+            points={["Knows real laughs from sub trains and spam", "Writes a title for every clip", "Skips clips that are mostly music"]} />
           <Feature flip img="/landing/phone.webp" alt="A hand holding a phone up to take a photo of a lake"
             title="Ready to post," accent="right from your phone."
-            text="Every clip is cropped to 9:16 with word-by-word captions, emoji and the creator credit. Swipe right to approve, left to skip."
-            points={["Captions and emoji burned in", "Publishes to YouTube Shorts and Instagram Reels", "Installs on your phone like an app"]} />
+            text="Every clip is made vertical for phones, with word-by-word captions, emoji and a credit to the streamer. Swipe right to post it, left to skip."
+            points={["Captions and emoji added for you", "Publishes to YouTube Shorts and Instagram Reels", "Installs on your phone like an app"]} />
         </section>
         <Faq />
         <Closing cta={cta} ctaLabel={ctaLabel} />

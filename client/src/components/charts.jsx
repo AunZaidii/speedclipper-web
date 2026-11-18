@@ -83,7 +83,7 @@ export function BarChart({ data, series, xKey = "date", xFmt = fmtDate, height =
         </div>
       )}
       <details className="mt-1 text-xs text-muted">
-        <summary className="cursor-pointer select-none">Table view</summary>
+        <summary className="cursor-pointer select-none">See the numbers</summary>
         <div className="mt-2 max-h-48 overflow-auto">
           <table className="w-full text-left">
             <thead><tr><th className="py-1 pr-3 font-medium">{xKey === "date" ? "Day" : xKey}</th>{series.map((s) => <th key={s.key} className="py-1 pr-3 font-medium">{s.label}</th>)}</tr></thead>

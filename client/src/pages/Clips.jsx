@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import ClipCard from "../components/ClipCard.jsx";
 import { Button, Empty, Skeleton, Tabs, usePoll, useToast } from "../components/ui.jsx";
 import { useLive } from "../live.jsx";
+import { CLIP_STATUS } from "../words.js";
 
 const PAGE = 48;
 
@@ -34,16 +35,16 @@ export default function Clips() {
   };
   const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const bulk = async (action) => {
-    if (action === "delete" && !window.confirm(`Delete ${sel.size} clip(s)?`)) return;
+    if (action === "delete" && !window.confirm(`Delete ${sel.size} clip${sel.size === 1 ? "" : "s"} for good?`)) return;
     try {
       const r = await api("/clips/bulk", { method: "POST", body: { ids: [...sel], action } });
-      toast(`${r.done} clip(s) ${action === "approve" ? "approved" : action === "reject" ? "rejected" : "deleted"}${r.skipped ? `, ${r.skipped} skipped (already published)` : ""}`);
+      toast(`${r.done} clip${r.done === 1 ? "" : "s"} ${action === "approve" ? "approved for posting" : action === "reject" ? "won't be posted" : "deleted"}${r.skipped ? ` (${r.skipped} already posted, left as they are)` : ""}`);
       setSel(new Set()); setSelecting(false); reload();
     } catch (e) { toast(e.message, true); }
   };
   const c = ov?.clips || {};
-  const tabs = [["", "All", Object.values(c).reduce((a, b) => a + b, 0)], ["pending", "Needs approval", c.pending || 0], ["ready", "Queued", c.ready || 0],
-    ["published", "Published", c.published || 0], ["rejected", "Rejected", c.rejected || 0], ["failed", "Failed", c.failed || 0]];
+  const tabs = [["", "All", Object.values(c).reduce((a, b) => a + b, 0)],
+    ...["pending", "ready", "published", "rejected", "failed"].map((k) => [k, CLIP_STATUS[k], c[k] || 0])];
 
   return (
     <div className="space-y-4">
@@ -51,12 +52,12 @@ export default function Clips() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input className="!pl-9" placeholder="Search titles…" value={qInput} onChange={(e) => setQInput(e.target.value)} />
+          <input className="!pl-9" placeholder="Search your clips…" value={qInput} onChange={(e) => setQInput(e.target.value)} />
         </div>
         <select value={creator} onChange={(e) => setCreator(e.target.value)} className="!w-auto">
-          <option value="">All creators</option>{(creators || []).map((x) => <option key={x._id} value={x._id}>{x.name}</option>)}
+          <option value="">All streamers</option>{(creators || []).map((x) => <option key={x._id} value={x._id}>{x.name}</option>)}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className="!w-auto"><option value="new">Newest</option><option value="score">Best score</option></select>
+        <select value={sort} onChange={(e) => setSort(e.target.value)} className="!w-auto"><option value="new">Newest</option><option value="score">Best rated</option></select>
         <Button variant={selecting ? "primary" : "default"} onClick={() => { setSelecting(!selecting); setSel(new Set()); }}>
           {selecting ? <><X size={15} /> Done</> : <><CheckSquare size={15} /> Select</>}
         </Button>
@@ -67,8 +68,8 @@ export default function Clips() {
           <span className="px-2 text-sm"><b>{sel.size}</b> selected</span>
           <button className="text-xs text-info" onClick={() => setSel(new Set(clips.map((x) => x._id)))}>Select all {clips.length}</button>
           <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="ok" disabled={!sel.size} onClick={() => bulk("approve")}>Approve & publish</Button>
-            <Button size="sm" disabled={!sel.size} onClick={() => bulk("reject")}>Reject</Button>
+            <Button size="sm" variant="ok" disabled={!sel.size} onClick={() => bulk("approve")}>Approve</Button>
+            <Button size="sm" disabled={!sel.size} onClick={() => bulk("reject")}>Don't post</Button>
             <Button size="sm" variant="danger" disabled={!sel.size} onClick={() => bulk("delete")}>Delete</Button>
           </div>
         </div>
@@ -94,7 +95,7 @@ export default function Clips() {
             <button onClick={loadMore} className="w-full rounded-xl border border-line py-3 text-sm text-muted hover:text-ink">Load more</button>
           )}
         </>
-      ) : <Empty>{q ? `No clips match “${q}”.` : "No clips here yet."}</Empty>}
+      ) : <Empty>{q ? `No clips match “${q}”.` : status ? `No clips are “${CLIP_STATUS[status]}” right now.` : "No clips yet. They appear here as soon as something big happens on a stream you follow."}</Empty>}
     </div>
   );
 }

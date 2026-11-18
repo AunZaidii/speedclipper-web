@@ -83,7 +83,7 @@ insights.post("/commands", async (req, res) => {
   // pausing: a user pauses their own monitoring; the admin pauses the whole worker
   if ((type === "pause" || type === "resume") && !isAdmin(req)) {
     await User.updateOne({ _id: owner }, { $set: { paused: type === "pause" } });
-    logEvent("command", type === "pause" ? "Monitoring paused (your creators are not watched until you resume)" : "Monitoring resumed", { owner });
+    logEvent("command", type === "pause" ? "Paused: new live streams aren't recorded until you resume" : "Watching your streamers again", { owner });
     notify("worker", { owner });
     return res.status(201).json({ type, status: "done" });
   }
@@ -109,9 +109,9 @@ insights.post("/commands", async (req, res) => {
   const dup = await Command.findOne({ owner, type, "payload.creator": workerPayload.creator, "payload.url": payload.url, status: { $in: ["pending", "sent"] } }).lean();
   if (dup) return res.json(dup);
   const cmd = await Command.create({ owner, type, payload: workerPayload });
-  const what = { check_now: "Check if live now", stop_session: "Stop recording", pause: "Pause the worker", resume: "Resume the worker",
-    vod: `Process past stream ${payload.url}` }[type];
-  logEvent("command", `${what}: sent to the clipping worker`, { owner });
+  const what = { check_now: `Checking if ${creator?.name || "they're"} live`, stop_session: `Stopping the recording of ${creator?.name || "that stream"}`,
+    pause: "Paused clipping for everyone", resume: "Clipping resumed for everyone", vod: `Making clips from a past stream: ${payload.url}` }[type];
+  logEvent("command", what, { owner });
   notify("commands", { owner });
   res.status(201).json(cmd);
 });
@@ -164,7 +164,7 @@ insights.post("/clips/:id/retry", async (req, res) => {
   if (!n) throw new HttpError(400, "nothing to retry");
   c.status = "ready";
   await c.save();
-  logEvent("approved", `Retrying ${n} upload(s): ${c.title}`, { owner: req.user._id, clip: c._id });
+  logEvent("approved", `Trying to post again: ${c.title}`, { owner: req.user._id, clip: c._id });
   notify("clips", { owner: req.user._id });
   res.json(c);
 });
@@ -174,7 +174,7 @@ insights.post("/clips/:id/priority", async (req, res) => {
   const pin = req.body?.pin !== false;
   const c = await Clip.findOneAndUpdate(mine(req, { _id: req.params.id }), { $set: { priority: pin ? Date.now() : 0 } }, { returnDocument: "after" }).lean();
   if (!c) throw new HttpError(404, "clip not found");
-  if (pin) logEvent("approved", `Moved to the front of the queue: ${c.title}`, { owner: req.user._id, clip: c._id });
+  if (pin) logEvent("approved", `Posting next: ${c.title}`, { owner: req.user._id, clip: c._id });
   notify("clips", { owner: req.user._id });
   res.json(c);
 });
@@ -188,12 +188,12 @@ insights.post("/clips/bulk", async (req, res) => {
   for (const c of clips) {
     if (c.publications.some((p) => ["uploading", "published"].includes(p.status))) { skipped++; continue; }
     if (action === "approve") { c.approved = true; c.status = "ready"; c.rejectReason = undefined; queuePublications(c); await c.save(); }
-    if (action === "reject") { c.status = "rejected"; c.approved = false; c.rejectReason = c.rejectReason || "rejected in dashboard"; c.publications = []; await c.save(); }
+    if (action === "reject") { c.status = "rejected"; c.approved = false; c.rejectReason = "You skipped this clip"; c.publications = []; await c.save(); }
     if (action === "delete") await deleteClip(c);
     done++;
   }
   logEvent(action === "approve" ? "approved" : action === "reject" ? "rejected" : "clip",
-    `${action === "delete" ? "Deleted" : action === "approve" ? "Approved" : "Rejected"} ${done} clip(s)${skipped ? ` (${skipped} already published, skipped)` : ""}`,
+    `${action === "delete" ? "Deleted" : action === "approve" ? "Approved" : "Won't post"} ${done} clip${done === 1 ? "" : "s"}${skipped ? ` (${skipped} already posted, left as they are)` : ""}`,
     { owner: req.user._id });
   notify("clips", { owner: req.user._id });
   res.json({ done, skipped });
@@ -254,7 +254,7 @@ insights.put("/secrets/anthropic", requireAdmin, async (req, res) => {
   const s = await readSecrets();
   if (key) s.anthropicKey = key; else delete s.anthropicKey;
   await Setting.updateOne({ _id: "platform" }, { $set: { secrets: encrypt(s) } }, { upsert: true });
-  logEvent("settings", key ? "AI scoring key saved (the worker picks it up within a minute)" : "AI scoring key removed", { owner: req.user._id });
+  logEvent("settings", key ? "Smart titles are on (within a minute)" : "Smart titles are off", { owner: req.user._id });
   res.json({ anthropicKey: key ? `${key.slice(0, 10)}…${key.slice(-4)}` : null, canEdit: true });
 });
 
@@ -271,7 +271,7 @@ export function startMonitor(everyMs = 30000) {
         await WorkerStatus.updateOne({ _id: "worker" }, { $set: { online: false, sessions: [] } });
         // recordings can't continue without the worker; a heartbeat after it's back marks them "resumed"
         const open = await LiveSession.updateMany({ endedAt: null }, { $set: { endedAt: new Date() } });
-        logEvent("worker", `Clipping worker went offline (no heartbeat for 2 min)${open.modifiedCount ? `; ${open.modifiedCount} recording(s) interrupted` : ""}`, { level: "warn" });
+        logEvent("worker", `Clipping server went offline${open.modifiedCount ? `; ${open.modifiedCount} recording${open.modifiedCount === 1 ? " was" : "s were"} interrupted` : ""}`, { level: "warn" });
         notify("worker");
       }
     } catch { /* db hiccup */ }

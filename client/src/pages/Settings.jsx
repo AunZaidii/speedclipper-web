@@ -4,31 +4,57 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { Button, Card, Field, Skeleton, Toggle, useToast } from "../components/ui.jsx";
 
+// [key, label, type, hint]. Types: bool | text | num | int | list | [[value, label], ...] | { range: [min, max, step], ends: [left, right] }
 const GROUPS = [
-  ["Publishing", [
-    ["uploadsEnabled", "Publish automatically", "bool"],
-    ["privacy", "YouTube privacy", ["private", "unlisted", "public"]],
-    ["requireApproval", "Every clip needs my approval", "bool"],
-    ["maxUploadsPerDay", "Max uploads per day (per platform)", "int"],
-    ["minMinutesBetweenUploads", "Minutes between uploads", "num"],
-    ["minScoreToPublish", "Min score to publish (1–10)", "num"],
-    ["defaultTags", "Tags added to every upload", "list"],
-    ["instagramCaptionHashtags", "Hashtags added to Instagram captions", "text"],
+  ["Posting", "How and when your clips go out.", [
+    ["uploadsEnabled", "Post approved clips automatically", "bool", "Turn off to keep everything until you switch it back on."],
+    ["requireApproval", "Let me review every clip before it's posted", "bool"],
+    ["privacy", "Who can see new YouTube videos", [["public", "Everyone (public)"], ["unlisted", "Only people with the link (unlisted)"], ["private", "Only me (private)"]]],
+    ["minScoreToPublish", "Only post clips rated at least", { range: [1, 10, 0.5], ends: ["Post almost everything", "Only the very best"] },
+      "Every clip gets a rating from 1 to 10. 7 means great clips only."],
+    ["maxUploadsPerDay", "Most posts per day", "int", "Counted separately for YouTube and Instagram."],
+    ["minMinutesBetweenUploads", "Minutes to wait between posts", "num", "Spreads your posts out over the day."],
+    ["defaultTags", "Search tags added to every video", "list", "Separate with commas."],
+    ["instagramCaptionHashtags", "Hashtags for Instagram", "text"],
   ]],
-  ["Finding moments (whole site)", [
-    ["spikeZThreshold", "Spike threshold (higher = fewer, stronger clips)", "num"],
-    ["maxClipsPerHour", "Max clips per hour of stream", "int"],
-    ["preRollSeconds", "Seconds before the peak", "num"],
-    ["postRollSeconds", "Seconds after the peak", "num"],
+  ["Finding moments", "For the whole site: how big moments are picked from live streams.", [
+    ["spikeZThreshold", "How picky to be", { range: [1.5, 5, 0.1], ends: ["More clips", "Only the biggest moments"] },
+      "How much chat has to blow up before we make a clip."],
+    ["maxClipsPerHour", "Most clips per hour of stream", "int"],
+    ["preRollSeconds", "Seconds to include before the moment", "num", "So viewers see what led up to it."],
+    ["postRollSeconds", "Seconds to include after the moment", "num", "For the reaction."],
   ]],
-  ["Video style (whole site)", [
-    ["layout", "Video layout", [["facecam_split", "Facecam + gameplay (no blur)"], ["center_crop", "Zoom to fill the screen"], ["blur_background", "Blurred background"]]],
-    ["captions", "Burned-in captions", "bool"],
-    ["emoji", "Emoji pop-ups on captions", "bool"],
-    ["hookText", "Hook text at the start", "bool"],
-    ["watermarkText", "Watermark (e.g. @YourChannel)", "text"],
+  ["Video style", "For the whole site: how every clip looks.", [
+    ["layout", "Layout", [["facecam_split", "Facecam on top, game below (no blur)"], ["center_crop", "Zoom to fill the screen"], ["blur_background", "Whole picture with blurred edges"]]],
+    ["captions", "Captions on the video", "bool"],
+    ["emoji", "Emoji pop-ups with the captions", "bool"],
+    ["hookText", "Big text in the first seconds", "bool"],
+    ["watermarkText", "Your channel name on the video", "text", "For example @YourChannel. Leave empty for none."],
   ]],
 ];
+
+function Setting({ k, label, t, hint, value, set }) {
+  if (t === "bool") return <div><Toggle checked={value} onChange={(v) => set(k, v)} label={label} />{hint && <p className="ml-6 mt-0.5 text-xs text-muted">{hint}</p>}</div>;
+  if (t?.range) {
+    const [min, max, step] = t.range;
+    return (
+      <Field label={<span className="flex items-baseline justify-between gap-2"><span>{label}</span><b className="text-ink">{value}</b></span>} hint={hint}>
+        <input type="range" min={min} max={max} step={step} value={value ?? min} onChange={(e) => set(k, Number(e.target.value))} className="w-full" />
+        <span className="mt-0.5 flex justify-between text-[11px] text-muted"><span>{t.ends[0]}</span><span>{t.ends[1]}</span></span>
+      </Field>
+    );
+  }
+  if (Array.isArray(t)) {
+    return <Field label={label} hint={hint}><select value={value} onChange={(e) => set(k, e.target.value)}>{t.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>;
+  }
+  if (t === "list") return <Field label={label} hint={hint}><input value={(value || []).join(", ")} onChange={(e) => set(k, e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} /></Field>;
+  return (
+    <Field label={label} hint={hint}>
+      <input type={t === "text" ? "text" : "number"} step={t === "int" ? 1 : "any"} min={t === "text" ? undefined : 0} value={value ?? ""}
+        onChange={(e) => set(k, t === "text" ? e.target.value : e.target.value === "" ? "" : Number(e.target.value))} />
+    </Field>
+  );
+}
 
 function Security() {
   const [f, setF] = useState({ current: "", next: "", confirm: "" });
@@ -41,7 +67,7 @@ function Security() {
   };
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   return (
-    <Card title="Security">
+    <Card title="Password">
       <form onSubmit={save} className="space-y-3">
         <div className="flex items-center gap-2 text-sm text-muted"><KeyRound size={16} /> Changing your password signs out every other device.</div>
         <Field label="Current password"><input type="password" autoComplete="current-password" required value={f.current} onChange={set("current")} /></Field>
@@ -109,26 +135,24 @@ export default function Settings() {
   const dirty = JSON.stringify(s) !== JSON.stringify(saved);
   const save = async () => {
     const body = Object.fromEntries(Object.entries(s).filter(([k, v]) => k !== "canEditPlatform" && JSON.stringify(v) !== JSON.stringify(saved[k])));
-    try { const r = await api("/settings", { method: "PATCH", body }); setS(r); setSaved(r); toast("Settings saved. They apply within a minute."); }
+    try { const r = await api("/settings", { method: "PATCH", body }); setS(r); setSaved(r); toast("Saved. Changes apply within a minute."); }
     catch (e) { toast(e.message, true); }
   };
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
-        {GROUPS.filter(([g]) => s.canEditPlatform || !g.includes("whole site")).map(([g, items]) => (
+        {GROUPS.filter(([g]) => s.canEditPlatform || g === "Posting").map(([g, about, items]) => (
           <Card key={g} title={g}>
-            <div className="space-y-3">
-              {items.map(([k, label, t]) => t === "bool" ? <div key={k}><Toggle checked={s[k]} onChange={(v) => set(k, v)} label={label} /></div>
-                : Array.isArray(t) ? <Field key={k} label={label}><select value={s[k]} onChange={(e) => set(k, e.target.value)}>{t.map((o) => Array.isArray(o) ? <option key={o[0]} value={o[0]}>{o[1]}</option> : <option key={o}>{o}</option>)}</select></Field>
-                : t === "list" ? <Field key={k} label={label}><input value={(s[k] || []).join(", ")} onChange={(e) => set(k, e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} /></Field>
-                : <Field key={k} label={label}><input type={t === "text" ? "text" : "number"} step="any" value={s[k] ?? ""} onChange={(e) => set(k, t === "text" ? e.target.value : e.target.value === "" ? "" : Number(e.target.value))} /></Field>)}
+            <p className="-mt-1 mb-4 text-xs text-muted">{about}</p>
+            <div className="space-y-4">
+              {items.map(([k, label, t, hint]) => <Setting key={k} k={k} label={label} t={t} hint={hint} value={s[k]} set={set} />)}
             </div>
           </Card>
         ))}
       </div>
       <div className={`sticky bottom-20 z-20 flex items-center gap-3 rounded-xl p-2 md:bottom-4 ${dirty ? "border border-accent/40 bg-panel/95 shadow-xl backdrop-blur" : ""}`}>
-        <Button variant="primary" disabled={!dirty} onClick={save}>Save settings</Button>
-        {dirty && <><span className="text-sm text-warn">Unsaved changes</span><Button variant="ghost" onClick={() => setS(saved)}>Discard</Button></>}
+        <Button variant="primary" disabled={!dirty} onClick={save}>Save changes</Button>
+        {dirty && <><span className="text-sm text-warn">You have changes that aren't saved yet</span><Button variant="ghost" onClick={() => setS(saved)}>Undo</Button></>}
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <DeviceCard />

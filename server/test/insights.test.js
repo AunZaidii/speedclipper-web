@@ -159,7 +159,7 @@ describe("analytics, secrets, events", () => {
     req.destroy();
     server.close();
     const text = got.join("");
-    expect(text).toContain("Now monitoring Some Creator");
+    expect(text).toContain("Now following Some Creator");
     expect(await Event.countDocuments({ type: "creator" })).toBe(1);
     await request(app).get("/api/stream").expect(401);
   });
@@ -178,7 +178,7 @@ describe("offline detection", () => {
     expect((await a.get("/api/sessions")).body[0].live).toBe(false);
     expect((await a.get("/api/worker-status")).body.online).toBe(false);
     const msg = (await a.get("/api/events?type=worker")).body[0].message;
-    expect(msg).toContain("1 recording(s) interrupted");
+    expect(msg).toContain("1 recording was interrupted");
   });
 });
 

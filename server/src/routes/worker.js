@@ -18,6 +18,8 @@ import { youtubeAccessToken } from "./accounts.js";
 
 export const worker = express.Router();
 
+const REQUEST_DONE = { check_now: "Checked", stop_session: "Recording stopped", pause: "Paused", resume: "Resumed", vod: "Past stream done" };
+
 worker.use((req, res, next) => {
   if (!safeEqual(req.get("x-worker-key"), config.workerKey)) return res.status(401).json({ error: "bad worker key" });
   next();
@@ -87,7 +89,7 @@ worker.post("/heartbeat", async (req, res) => {
     log: Array.isArray(b.log) ? b.log.slice(-200).map((l) => String(l).slice(0, 400)) : [],
   } }, { upsert: true });
   const prev = await WorkerStatus.findById("worker").select("online").lean();
-  if (prev && prev.online === false) logEvent("worker", "Clipping worker is back online", { level: "success" });
+  if (prev && prev.online === false) logEvent("worker", "Clipping server is back online", { level: "success" });
   await WorkerStatus.updateOne({ _id: "worker" }, { $set: { online: true, paused: !!b.paused } });
   await trackSessions(sessions);
   const cmds = await Command.find({ status: "pending" }).sort({ createdAt: 1 }).limit(10).lean();
@@ -118,14 +120,14 @@ async function trackSessions(sessions) {
         startedAt: s.since ? new Date(s.since * 1000) : now, ...set });
       await logEventFor(owners, "live", `${s.creator} went live: ${s.title || ""}`.trim(), { level: "success", platform: s.platform });
     } else if (existing.endedAt) {
-      await logEventFor(owners, "live", `Recording ${s.creator} again (resumed)`);
+      await logEventFor(owners, "live", `${s.creator} is live again, recording resumed`);
     }
   }
   const ended = await LiveSession.find({ endedAt: null, videoId: { $nin: ids } }).lean();
   for (const e of ended) {
     await LiveSession.updateOne({ _id: e._id }, { $set: { endedAt: now } });
     const owners = (await followersOf(e.channel)).map((f) => f.owner);
-    await logEventFor(owners, "ended", `${e.creatorName} stream ended · ${Math.round((e.recordedSeconds || 0) / 60)} min recorded, ${e.moments || 0} moments`);
+    await logEventFor(owners, "ended", `${e.creatorName}'s stream ended (${Math.round((e.recordedSeconds || 0) / 60)} min, ${e.moments || 0} big moment${e.moments === 1 ? "" : "s"})`);
     await Creator.updateMany({ channel: e.channel, skipVideoId: e.videoId }, { $unset: { skipVideoId: 1 } });
   }
 }
@@ -138,7 +140,7 @@ worker.post("/commands/:id/result", async (req, res) => {
     result: String(req.body?.result || "").slice(0, 500), doneAt: new Date() } }, { returnDocument: "after" }).lean();
   if (!c) throw new HttpError(404, "no such command");
   if (ok && (c.type === "pause" || c.type === "resume")) await WorkerStatus.updateOne({ _id: "worker" }, { $set: { paused: c.type === "pause" } });
-  logEvent("command", `${c.type.replace("_", " ")}: ${c.result || (ok ? "done" : "failed")}`, { level: ok ? "info" : "warn", owner: c.owner });
+  logEvent("command", ok ? `${REQUEST_DONE[c.type] || "Done"}${c.result ? `: ${c.result}` : ""}` : `That didn't work${c.result ? `: ${c.result}` : ""}`, { level: ok ? "info" : "warn", owner: c.owner });
   notify("commands", { owner: c.owner });
   res.json({ ok: true });
 });
@@ -221,7 +223,7 @@ worker.post("/clips", upload.fields([{ name: "thumb", maxCount: 1 }, { name: "pr
       if (meta.rejectReason) {
         clip.status = "rejected"; clip.rejectReason = meta.rejectReason;
       } else if (meta.score != null && meta.score < settings.minScoreToPublish) {
-        clip.status = "rejected"; clip.rejectReason = `score ${meta.score} < ${settings.minScoreToPublish}`;
+        clip.status = "rejected"; clip.rejectReason = `Rated ${meta.score}/10, below your minimum of ${settings.minScoreToPublish}`;
       } else if (clip.approved) {
         clip.status = "ready";
       } else if (settings.requireApproval || !creator?.autoUpload || clip.source !== "live") {
@@ -233,7 +235,7 @@ worker.post("/clips", upload.fields([{ name: "thumb", maxCount: 1 }, { name: "pr
     }
     await clip.save();
     if (isNew && !already.length) {
-      const what = clip.status === "ready" ? "queued to publish" : clip.status === "pending" ? "needs approval" : "rejected";
+      const what = clip.status === "ready" ? "scheduled to post" : clip.status === "pending" ? "needs your review" : "not posted";
       logEvent("clip", `New clip from ${clip.creatorName || "a stream"}: ${clip.title} (${what})`,
         { level: clip.status === "rejected" ? "info" : "success", owner, clip: clip._id, creator: clip.creator });
     }
@@ -311,8 +313,8 @@ worker.post("/jobs/:clipId/result", async (req, res) => {
   if (clip.publications.every((p) => p.status === "published")) clip.status = "published";
   else if (clip.publications.some((p) => p.status === "failed") && !clip.publications.some((p) => ["queued", "uploading"].includes(p.status))) clip.status = "failed";
   await clip.save();
-  if (ok) logEvent("published", `Published to ${platform === "youtube" ? "YouTube" : "Instagram"}: ${clip.title}`, { level: "success", owner: clip.owner, clip: clip._id, platform, url });
-  else logEvent("failed", `${platform} upload ${retry ? "will retry" : "failed"}: ${clip.title} (${String(error || "").slice(0, 120)})`,
+  if (ok) logEvent("published", `Posted to ${platform === "youtube" ? "YouTube" : "Instagram"}: ${clip.title}`, { level: "success", owner: clip.owner, clip: clip._id, platform, url });
+  else logEvent("failed", `${retry ? `${platform === "youtube" ? "YouTube" : "Instagram"} post didn't go through, trying again soon` : `Couldn't post to ${platform === "youtube" ? "YouTube" : "Instagram"}`}: ${clip.title}`,
     { level: retry ? "warn" : "error", owner: clip.owner, clip: clip._id, platform });
   notify("clips", { owner: clip.owner });
   res.json({ ok: true, status: clip.status });

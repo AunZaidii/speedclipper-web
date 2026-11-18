@@ -19,8 +19,8 @@ export const notifyPref = {
 async function systemNotify(e) {
   if (!notifyPref.get() || !("Notification" in window) || Notification.permission !== "granted") return;
   if (document.visibilityState === "visible") return;
-  if (e.type === "clip" && !/needs approval/.test(e.message)) return;
-  const title = { live: "🔴 Live now", published: "✅ Published", failed: "⚠️ Upload problem", clip: "✂️ New clip to review", worker: "🖥️ Clipping server" }[e.type] || "SpeedClipper";
+  if (e.type === "clip" && !/needs (?:your review|approval)/.test(e.message)) return;
+  const title = { live: "🔴 Live now", published: "✅ Posted", failed: "⚠️ Couldn't post", clip: "✂️ New clip to review", worker: "🖥️ Clipping server" }[e.type] || "SpeedClipper";
   const opts = { body: e.message, icon: "/icon-192.png", badge: "/icon-192.png", tag: `${e.type}-${e.clip || e.creator || e._id}`, data: { url: NOTIFY_TYPES[e.type] || "/" } };
   try {
     const reg = await navigator.serviceWorker?.getRegistration();

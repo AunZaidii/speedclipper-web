@@ -17,19 +17,19 @@ import Settings from "./pages/Settings.jsx";
 import Streams from "./pages/Streams.jsx";
 
 const GROUPS = [
-  ["Monitor", [
-    { to: "/", label: "Overview", icon: LayoutDashboard },
-    { to: "/streams", label: "Streams", icon: Radio },
+  ["Watch", [
+    { to: "/", label: "Home", icon: LayoutDashboard },
+    { to: "/streams", label: "Live", icon: Radio },
     { to: "/activity", label: "Activity", icon: Activity },
   ]],
-  ["Content", [
+  ["Your clips", [
     { to: "/review", label: "Review", icon: ThumbsUp, badge: "pending" },
-    { to: "/clips", label: "Clips", icon: Film },
-    { to: "/queue", label: "Publishing", icon: ListOrdered },
-    { to: "/analytics", label: "Analytics", icon: BarChart3 },
+    { to: "/clips", label: "My clips", icon: Film },
+    { to: "/queue", label: "Schedule", icon: ListOrdered },
+    { to: "/analytics", label: "Stats", icon: BarChart3 },
   ]],
   ["Setup", [
-    { to: "/creators", label: "Creators", icon: Tv },
+    { to: "/creators", label: "Streamers", icon: Tv },
     { to: "/accounts", label: "Accounts", icon: Link2 },
     { to: "/settings", label: "Settings", icon: Cog },
   ]],
@@ -140,7 +140,7 @@ function Shell({ me, onLogout }) {
           </div>
         ))}
         <div className="mt-auto shrink-0 space-y-2 px-2 pt-4 text-xs text-muted">
-          <div className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${connected ? "bg-ok" : "bg-muted"}`} />{connected ? "Live updates on" : "Reconnecting…"}</div>
+          <div className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${connected ? "bg-ok" : "bg-muted"}`} />{connected ? "Up to date" : "Reconnecting…"}</div>
           <div className="truncate">{me.email}</div>
           <button onClick={onLogout} className="inline-flex items-center gap-1.5 hover:text-ink"><LogOut size={14} /> Sign out</button>
         </div>

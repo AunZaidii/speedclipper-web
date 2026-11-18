@@ -13,6 +13,15 @@ import { HttpError, buildCreator, canPublish, ensureCredit, uploadsToday } from 
 import { queuePublications } from "./worker.js";
 
 export const api = express.Router();
+
+/** How settings are named for people (activity log). */
+const SETTING_NAMES = {
+  privacy: "who can see new videos", maxUploadsPerDay: "posts per day", minMinutesBetweenUploads: "time between posts",
+  requireApproval: "approve every clip", uploadsEnabled: "automatic posting", minScoreToPublish: "minimum rating",
+  defaultTags: "tags", instagramCaptionHashtags: "Instagram hashtags", spikeZThreshold: "how picky to be",
+  maxClipsPerHour: "clips per hour", preRollSeconds: "lead-in length", postRollSeconds: "ending length", layout: "video layout",
+  emoji: "emoji", hookText: "big opening text", captions: "captions", watermarkText: "watermark",
+};
 api.use(requireUser);
 
 const oid = (id) => {
@@ -85,7 +94,7 @@ api.post("/creators", async (req, res) => {
     throw new HttpError(400, `${data.handle} is already in your list`);
   }
   const c = await Creator.create({ ...data, owner: req.user._id });
-  logEvent("creator", `Now monitoring ${c.name} (${c.platform})`, { level: "success", owner: req.user._id, creator: c._id });
+  logEvent("creator", `Now following ${c.name} on ${c.platform === "twitch" ? "Twitch" : "YouTube"}`, { level: "success", owner: req.user._id, creator: c._id });
   notify("creators", { owner: req.user._id });
   res.status(201).json(c);
 });
@@ -112,7 +121,7 @@ api.patch("/creators/:id", async (req, res) => {
 
 api.delete("/creators/:id", async (req, res) => {
   const c = await Creator.findOneAndDelete(mine(req, { _id: oid(req.params.id) })).lean();
-  if (c) logEvent("creator", `Stopped monitoring ${c.name}`, { owner: req.user._id, creator: c._id });
+  if (c) logEvent("creator", `Stopped following ${c.name}`, { owner: req.user._id, creator: c._id });
   notify("creators", { owner: req.user._id });
   res.json({ ok: true });
 });
@@ -173,7 +182,7 @@ api.post("/clips/:id/approve", async (req, res) => {
   c.rejectReason = undefined;
   queuePublications(c, req.body?.platforms);
   await c.save();
-  logEvent("approved", `Approved: ${c.title}`, { owner: req.user._id, clip: c._id, creator: c.creator?._id });
+  logEvent("approved", `Approved for posting: ${c.title}`, { owner: req.user._id, clip: c._id, creator: c.creator?._id });
   notify("clips", { owner: req.user._id });
   res.json(c);
 });
@@ -184,10 +193,10 @@ api.post("/clips/:id/reject", async (req, res) => {
   await lockedCheck(c);
   c.status = "rejected";
   c.approved = false;
-  c.rejectReason = c.rejectReason || "rejected in dashboard";
+  c.rejectReason = "You skipped this clip";
   c.publications = c.publications.filter((p) => p.status === "published");
   await c.save();
-  logEvent("rejected", `Rejected: ${c.title}`, { owner: req.user._id, clip: c._id });
+  logEvent("rejected", `Won't be posted: ${c.title}`, { owner: req.user._id, clip: c._id });
   notify("clips", { owner: req.user._id });
   res.json(c);
 });
@@ -259,7 +268,7 @@ api.patch("/settings", async (req, res) => {
     await Setting.updateOne({ _id: "platform" }, { $set: { values: { ...curPlatform, ...p.data } } }, { upsert: true });
   }
   const changed = [...Object.keys(u.data), ...platformChanged];
-  if (changed.length) logEvent("settings", `Settings changed: ${changed.join(", ")}`, { owner: req.user._id });
+  if (changed.length) logEvent("settings", `Settings updated: ${changed.map((k) => SETTING_NAMES[k] || k).join(", ")}`, { owner: req.user._id });
   notify("settings", { owner: req.user._id });
   res.json({ ...(await getSettings(req.user._id)), canEditPlatform: isAdmin(req) });
 });

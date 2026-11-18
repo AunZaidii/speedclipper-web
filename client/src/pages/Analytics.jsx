@@ -21,39 +21,39 @@ export default function Analytics() {
   if (!a) return <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /><Skeleton className="h-64" /></div>;
   const t = a.totals;
   const statusSeries = [
-    { key: "published", label: "Published", color: SERIES[0] },
-    { key: "ready", label: "Queued", color: SERIES[1] },
-    { key: "pending", label: "Needs approval", color: SERIES[2] },
-    { key: "rejected", label: "Rejected", color: SERIES[3] },
+    { key: "published", label: "Posted", color: SERIES[0] },
+    { key: "ready", label: "Scheduled", color: SERIES[1] },
+    { key: "pending", label: "Needs review", color: SERIES[2] },
+    { key: "rejected", label: "Not posted", color: SERIES[3] },
   ];
   const conversion = t.clips ? Math.round(((t.byStatus.published || 0) / t.clips) * 100) : 0;
   return (
     <div className="space-y-5">
       <Tabs value={days} onChange={setDays} items={[["7", "7 days"], ["14", "14 days"], ["30", "30 days"], ["90", "90 days"]]} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Tile label="Clips made" value={t.clips} sub={t.avgScore ? `avg score ${t.avgScore.toFixed(1)}` : "–"} />
-        <Tile label="Published" value={t.byStatus.published || 0} sub={`${conversion}% of clips`} />
-        <Tile label="Streams recorded" value={t.sessions} sub={`${t.hoursRecorded.toFixed(1)} h of video`} />
-        <Tile label="Moments found" value={t.moments} sub={t.sessions ? `${(t.moments / t.sessions).toFixed(1)} per stream` : "–"} />
-        <Tile label="Chat analysed" value={Number(t.chatMessages).toLocaleString()} sub="messages" />
+        <Tile label="Clips made" value={t.clips} sub={t.avgScore ? `average rating ${t.avgScore.toFixed(1)}` : "–"} />
+        <Tile label="Posted" value={t.byStatus.published || 0} sub={`${conversion}% of your clips`} />
+        <Tile label="Streams watched" value={t.sessions} sub={`${t.hoursRecorded.toFixed(1)} hours recorded`} />
+        <Tile label="Big moments" value={t.moments} sub={t.sessions ? `about ${Math.round(t.moments / t.sessions)} per stream` : "–"} />
+        <Tile label="Chat messages read" value={Number(t.chatMessages).toLocaleString()} sub="to find the best moments" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Clips per day by outcome">
-          {t.clips ? <BarChart data={a.clipsByDay} series={statusSeries} title="Clips per day by outcome" /> : <Empty>No clips in this period.</Empty>}
+        <Card title="Clips per day">
+          {t.clips ? <BarChart data={a.clipsByDay} series={statusSeries} title="Clips per day, by what happened to them" /> : <Empty>No clips in this period.</Empty>}
         </Card>
-        <Card title="Published per day">
+        <Card title="Posts per day">
           {t.published ? <BarChart data={a.publishedByDay} series={[{ key: "youtube", label: "YouTube", color: SERIES[0] }, { key: "instagram", label: "Instagram", color: SERIES[1] }]}
-            title="Published per day by platform" /> : <Empty>Nothing published in this period.</Empty>}
+            title="Posts per day on YouTube and Instagram" /> : <Empty>Nothing posted in this period.</Empty>}
         </Card>
-        <Card title="Score distribution">
-          {t.clips ? <BarChart data={a.scoreHistogram} xKey="score" xFmt={(s) => String(s)} series={[{ key: "n", label: "Clips", color: SERIES[0] }]} height={160} title="Clips by score" />
-            : <Empty>No scores yet.</Empty>}
-          <p className="mt-1 text-xs text-muted">Clips scoring below your minimum (Settings) are rejected automatically.</p>
+        <Card title="How your clips are rated">
+          {t.clips ? <BarChart data={a.scoreHistogram} xKey="score" xFmt={(s) => String(s)} series={[{ key: "n", label: "Clips", color: SERIES[0] }]} height={160} title="Number of clips at each rating" />
+            : <Empty>No ratings yet.</Empty>}
+          <p className="mt-1 text-xs text-muted">Clips rated below your minimum aren't posted. You can change the minimum in Settings.</p>
         </Card>
-        <Card title="Creators">
+        <Card title="Your streamers">
           {a.perCreator.length ? (
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted"><tr><th className="pb-2 font-medium">Creator</th><th className="pb-2 font-medium">Clips</th><th className="pb-2 font-medium">Published</th><th className="pb-2 font-medium">Avg score</th></tr></thead>
+              <thead className="text-left text-xs text-muted"><tr><th className="pb-2 font-medium">Streamer</th><th className="pb-2 font-medium">Clips</th><th className="pb-2 font-medium">Posted</th><th className="pb-2 font-medium">Average rating</th></tr></thead>
               <tbody>
                 {a.perCreator.map((c) => (
                   <tr key={c.name} className="border-t border-line">
@@ -63,10 +63,10 @@ export default function Analytics() {
                 ))}
               </tbody>
             </table>
-          ) : <Empty>No creators with clips yet.</Empty>}
+          ) : <Empty>No clips from your streamers yet.</Empty>}
         </Card>
       </div>
-      <Card title="Top clips">
+      <Card title="Your best clips">
         {a.topClips.length ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {a.topClips.map((c, i) => (

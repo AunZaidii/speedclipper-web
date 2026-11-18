@@ -52,10 +52,10 @@ export async function publishToInstagram(clipObjectId, { pollMs = 10000, maxPoll
     const info = await call("GET", `/${media.id}`, { fields: "permalink", access_token: token }).catch(() => ({}));
     Object.assign(pub, { status: "published", externalId: media.id, url: info.permalink, error: undefined, updatedAt: new Date() });
     await countPublish(clip.owner, "instagram");
-    logEvent("published", `Published to Instagram: ${clip.title}`, { level: "success", owner: clip.owner, clip: clip._id, platform: "instagram", url: info.permalink });
+    logEvent("published", `Posted to Instagram: ${clip.title}`, { level: "success", owner: clip.owner, clip: clip._id, platform: "instagram", url: info.permalink });
   } catch (e) {
     Object.assign(pub, { status: pub.attempts < 3 ? "queued" : "failed", error: String(e.message).slice(0, 500), updatedAt: new Date() });
-    logEvent("failed", `Instagram ${pub.status === "queued" ? "will retry" : "failed"}: ${clip.title} (${String(e.message).slice(0, 120)})`,
+    logEvent("failed", `${pub.status === "queued" ? "Instagram post didn't go through, trying again soon" : "Couldn't post to Instagram"}: ${clip.title}`,
       { level: pub.status === "queued" ? "warn" : "error", owner: clip.owner, clip: clip._id, platform: "instagram" });
   } finally {
     const file = clip.publishFile;

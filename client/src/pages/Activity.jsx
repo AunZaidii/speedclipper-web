@@ -17,14 +17,16 @@ export function EventRow({ e, compact }) {
         <div className={compact ? "line-clamp-2" : ""}>{e.message}</div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
           {timeAgo(e.at)}
-          {e.url && <a className="text-info" href={e.url} target="_blank" rel="noreferrer">open ↗</a>}
+          {e.url && <a className="text-info" href={e.url} target="_blank" rel="noreferrer">watch it ↗</a>}
         </div>
       </div>
     </div>
   );
 }
 
-const FILTERS = [["", "All"], ["live,ended", "Streams"], ["clip,approved,rejected", "Clips"], ["published,failed", "Publishing"], ["command,worker,settings,creator", "System"]];
+const FILTERS = [["", "Everything"], ["live,ended", "Streams"], ["clip,approved,rejected", "Clips"], ["published,failed", "Posting"], ["command,worker,settings,creator", "Other"]];
+const REQUEST = { check_now: "Check if live", stop_session: "Stop recording", pause: "Pause", resume: "Resume", vod: "Clips from a past stream" };
+const REQUEST_STATE = { pending: "waiting", sent: "working on it", done: "done", failed: "didn't work" };
 
 export default function ActivityPage() {
   const { tick } = useLive();
@@ -49,21 +51,21 @@ export default function ActivityPage() {
           {!events ? <div className="text-muted">Loading…</div> : all.length ? (
             <>
               <div className="divide-y divide-line">{all.map((e) => <EventRow key={e._id} e={e} />)}</div>
-              {all.length >= 60 && <button onClick={more} className="mt-3 w-full rounded-lg border border-line py-2 text-sm text-muted hover:text-ink">Load older</button>}
+              {all.length >= 60 && <button onClick={more} className="mt-3 w-full rounded-lg border border-line py-2 text-sm text-muted hover:text-ink">Show older</button>}
             </>
-          ) : <Empty>No activity yet.</Empty>}
+          ) : <Empty>Nothing yet. Updates about your streamers and clips show up here.</Empty>}
         </Card>
       </div>
       <div className="space-y-5">
-        <Card title="Commands sent to the clipping server">
-          {!cmds?.length ? <p className="text-sm text-muted">None yet. Pause/resume, “check now”, stop recording and VOD jobs show up here.</p> : (
+        <Card title="Your requests">
+          {!cmds?.length ? <p className="text-sm text-muted">Nothing yet. When you pause, check a streamer, stop a recording or make clips from a past stream, it shows up here.</p> : (
             <div className="space-y-2">
               {cmds.map((c) => (
                 <div key={c._id} className="flex items-start gap-2 text-sm">
-                  <Badge kind={c.status === "done" ? "ready" : c.status === "failed" ? "failed" : "pending"}>{c.status}</Badge>
+                  <Badge kind={c.status === "done" ? "ready" : c.status === "failed" ? "failed" : "pending"}>{REQUEST_STATE[c.status] || c.status}</Badge>
                   <div className="min-w-0 flex-1">
-                    <div>{c.type.replace("_", " ")}{c.payload?.url ? `: ${c.payload.url}` : ""}</div>
-                    <div className="text-xs text-muted">{c.result || (c.status === "pending" ? "waiting for the server (≤ 30 s)" : "")} · {timeAgo(c.createdAt)}</div>
+                    <div>{REQUEST[c.type] || c.type}{c.payload?.url ? `: ${c.payload.url}` : ""}</div>
+                    <div className="text-xs text-muted">{c.result || (c.status === "pending" ? "starts within 30 seconds" : "")} · {timeAgo(c.createdAt)}</div>
                   </div>
                 </div>
               ))}
