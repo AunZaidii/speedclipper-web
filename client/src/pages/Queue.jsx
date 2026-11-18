@@ -48,7 +48,7 @@ export default function Queue() {
   const retry = async (id) => { try { await api(`/clips/${id}/retry`, { method: "POST" }); toast("Back in the queue"); reload(); } catch (e) { toast(e.message, true); } };
   return (
     <div className="space-y-5">
-      <p className="text-sm text-muted">Best clips go first. Times are estimates from your limits (max per day, minutes between uploads); the laptop uploads when a slot opens.</p>
+      <p className="text-sm text-muted">Best clips go first. Times are estimates from your limits (max per day, minutes between uploads); the server uploads when a slot opens.</p>
       <div className="grid gap-4 lg:grid-cols-2">
         <PlatformQueue name="YouTube Shorts" kind="youtube" q={data.youtube} onPin={pin} />
         <PlatformQueue name="Instagram Reels" kind="instagram" q={data.instagram} onPin={pin} />

@@ -1,4 +1,4 @@
-import { Bell, KeyRound, Laptop, Smartphone } from "lucide-react";
+import { Bell, KeyRound, Server, Smartphone } from "lucide-react";
 import { notifyPref } from "../live.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
@@ -15,13 +15,13 @@ const GROUPS = [
     ["defaultTags", "Tags added to every upload", "list"],
     ["instagramCaptionHashtags", "Hashtags added to Instagram captions", "text"],
   ]],
-  ["Finding moments", [
+  ["Finding moments (whole site)", [
     ["spikeZThreshold", "Spike threshold (higher = fewer, stronger clips)", "num"],
     ["maxClipsPerHour", "Max clips per hour of stream", "int"],
     ["preRollSeconds", "Seconds before the peak", "num"],
     ["postRollSeconds", "Seconds after the peak", "num"],
   ]],
-  ["Editing", [
+  ["Video style (whole site)", [
     ["layout", "Video layout", [["facecam_split", "Facecam + gameplay (no blur)"], ["center_crop", "Zoom to fill the screen"], ["blur_background", "Blurred background"]]],
     ["captions", "Burned-in captions", "bool"],
     ["emoji", "Emoji pop-ups on captions", "bool"],
@@ -86,13 +86,13 @@ function DeviceCard() {
 
 function WorkerSetup() {
   return (
-    <Card title="Connect your laptop">
+    <Card title="Clipping server">
       <div className="flex gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-info/15 text-info"><Laptop size={18} /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-info/15 text-info"><Server size={18} /></span>
         <div className="min-w-0 text-sm text-muted">
-          <p>The laptop runs SpeedClipper (recording, Whisper, ffmpeg) and syncs with this site. Add two lines to <code className="text-ink">speed-clipper/.env</code> on the laptop:</p>
+          <p>The clipping server records streams, finds moments, edits and uploads for every user. It needs two lines in its <code className="text-ink">.env</code>:</p>
           <pre className="mt-2 overflow-x-auto rounded-xl bg-panel2 p-3 font-mono text-xs text-ink">{`SPEEDCLIPPER_SERVER_URL=${window.location.origin}\nSPEEDCLIPPER_WORKER_KEY=<WORKER_KEY from the server's environment>`}</pre>
-          <p className="mt-2">Then run <code className="text-ink">python main.py run</code> (or install autostart). It appears on the Overview page within 30 seconds.</p>
+          <p className="mt-2">Then on the server run <code className="text-ink">bash deploy/setup-server.sh</code>. It appears on the Overview page within 30 seconds.</p>
         </div>
       </div>
     </Card>
@@ -108,14 +108,14 @@ export default function Settings() {
   const set = (k, v) => setS((x) => ({ ...x, [k]: v }));
   const dirty = JSON.stringify(s) !== JSON.stringify(saved);
   const save = async () => {
-    const body = Object.fromEntries(Object.entries(s).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(saved[k])));
-    try { const r = await api("/settings", { method: "PATCH", body }); setS(r); setSaved(r); toast("Settings saved. The laptop applies them within a minute."); }
+    const body = Object.fromEntries(Object.entries(s).filter(([k, v]) => k !== "canEditPlatform" && JSON.stringify(v) !== JSON.stringify(saved[k])));
+    try { const r = await api("/settings", { method: "PATCH", body }); setS(r); setSaved(r); toast("Settings saved. They apply within a minute."); }
     catch (e) { toast(e.message, true); }
   };
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
-        {GROUPS.map(([g, items]) => (
+        {GROUPS.filter(([g]) => s.canEditPlatform || !g.includes("whole site")).map(([g, items]) => (
           <Card key={g} title={g}>
             <div className="space-y-3">
               {items.map(([k, label, t]) => t === "bool" ? <div key={k}><Toggle checked={s[k]} onChange={(v) => set(k, v)} label={label} /></div>
@@ -132,7 +132,7 @@ export default function Settings() {
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <DeviceCard />
-        <WorkerSetup />
+        {s.canEditPlatform && <WorkerSetup />}
         <Security />
       </div>
     </div>

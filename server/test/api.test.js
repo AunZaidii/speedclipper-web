@@ -7,7 +7,7 @@ import { config } from "../src/config.js";
 import { decrypt, encrypt } from "../src/crypto.js";
 import { instagramCaption } from "../src/instagram.js";
 import { resetMedia } from "../src/media.js";
-import { Account, Clip, Creator, Quota } from "../src/models.js";
+import { Account, Clip, Creator, Quota, User } from "../src/models.js";
 import { pacificDay, parseChannel } from "../src/util.js";
 
 let mem, app;
@@ -27,6 +27,8 @@ async function owner() {
   return agent;
 }
 
+const acc = async (platform, email = "me@example.com") => Account.create({ owner: (await User.findOne({ email }))._id, platform, tokens: "x" });
+
 function workerClip(creatorId, extra = {}) {
   return request(app).post("/api/worker/clips").set(W)
     .field("meta", JSON.stringify({ clipId: "vid_100", creatorId, videoId: "vid", source: "live", title: "Crazy moment #shorts",
@@ -36,12 +38,14 @@ function workerClip(creatorId, extra = {}) {
 }
 
 describe("auth", () => {
-  it("first visit creates the owner; nobody else can sign up", async () => {
-    expect((await request(app).get("/api/auth/status")).body.setupNeeded).toBe(true);
+  it("first account is the admin; others sign up as users; duplicates refused", async () => {
+    expect((await request(app).get("/api/auth/status")).body).toMatchObject({ setupNeeded: true, signupOpen: true });
     await request(app).post("/api/auth/setup").send({ email: "me@example.com", password: "short" }).expect(400);
     const a = await owner();
-    expect((await a.get("/api/auth/me")).body.email).toBe("me@example.com");
-    await request(app).post("/api/auth/setup").send({ email: "x@y.com", password: "another long pw" }).expect(409);
+    expect((await a.get("/api/auth/me")).body).toEqual({ email: "me@example.com", role: "admin" });
+    const u = request.agent(app);
+    expect((await u.post("/api/auth/signup").send({ email: "x@y.com", password: "another long pw" }).expect(200)).body.role).toBe("user");
+    await request(app).post("/api/auth/signup").send({ email: "X@Y.com", password: "another long pw" }).expect(409);
     await request(app).get("/api/creators").expect(401);
     await request(app).post("/api/auth/login").send({ email: "me@example.com", password: "wrong password!" }).expect(401);
     const b = request.agent(app);
@@ -97,7 +101,8 @@ describe("worker", () => {
     const cfg = (await request(app).get("/api/worker/config").set(W).expect(200)).body;
     expect(cfg.creators.map((x) => x.name)).toEqual(["IShowSpeed"]);
     expect(cfg.settings.privacy).toBe("private");
-    await request(app).post("/api/worker/heartbeat").set(W).send({ state: "recording", sessions: [{ creatorId: c._id, title: "LIVE NOW" }], freeGb: 120 }).expect(200);
+    expect(cfg.creators[0].id).toBe(c.channel);
+    await request(app).post("/api/worker/heartbeat").set(W).send({ state: "recording", sessions: [{ creatorId: c.channel, title: "LIVE NOW" }], freeGb: 120 }).expect(200);
     const ov = (await a.get("/api/overview").expect(200)).body;
     expect(ov.worker.online).toBe(true);
     expect(ov.worker.sessions[0].title).toBe("LIVE NOW");
@@ -138,13 +143,13 @@ describe("worker", () => {
     await workerClip(c._id);
     expect((await request(app).get("/api/worker/jobs/next").set(W)).body).toMatchObject({ job: null, reason: "YouTube is not connected" });
     expect((await request(app).get("/api/worker/instagram/next").set(W)).body).toMatchObject({ clipId: null, reason: "Instagram is not connected" });
-    await Account.create({ platform: "instagram", tokens: "x" });
+    await acc("instagram");
     expect((await request(app).get("/api/worker/instagram/next").set(W)).body.clipId).toBe("vid_100");
   });
 
   it("YouTube job flow: best first, limits, result, approve/reject/edit locks", async () => {
     const a = await owner();
-    await Account.create({ platform: "youtube", tokens: "x" });
+    await acc("youtube");
     const c = (await a.post("/api/creators").send({ link: "@IShowSpeed" })).body;
     await workerClip(c._id, { clipId: "low_1", score: 7.5 });
     await workerClip(c._id, { clipId: "high_1", score: 9.5 });
@@ -156,7 +161,9 @@ describe("worker", () => {
     await request(app).post("/api/worker/jobs/high_1/result").set(W).send({ ok: true, externalId: "YT1", url: "https://youtube.com/shorts/YT1", privacy: "private" }).expect(200);
     const done = await Clip.findOne({ clipId: "high_1" }).lean();
     expect(done.status).toBe("published");
-    expect((await Quota.findById(`youtube:${pacificDay()}`).lean()).uploads).toBe(1);
+    const me = await User.findOne({ email: "me@example.com" });
+    expect((await Quota.findById(`${me._id}:youtube:${pacificDay()}`).lean()).uploads).toBe(1);
+    expect((await Quota.findById(`project:youtube:${pacificDay()}`).lean()).uploads).toBe(1);
     // 30-minute spacing blocks the next one
     const next = (await request(app).get("/api/worker/jobs/next").set(W)).body;
     expect(next.job).toBe(null);

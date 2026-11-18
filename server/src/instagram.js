@@ -1,6 +1,6 @@
 // Publish a clip as an Instagram Reel: create container from a one-time public URL -> wait -> publish.
 import { config } from "./config.js";
-import { removeFile } from "./media.js";
+import { releaseFile } from "./media.js";
 import { Clip } from "./models.js";
 import { instagramToken } from "./routes/accounts.js";
 import { countPublish } from "./util.js";
@@ -34,8 +34,8 @@ export async function publishToInstagram(clipObjectId, { pollMs = 10000, maxPoll
   pub.status = "uploading"; pub.attempts += 1; pub.updatedAt = new Date();
   await clip.save();
   try {
-    const { token, igUserId } = await instagramToken();
-    const settings = await getSettings();
+    const { token, igUserId } = await instagramToken(clip.owner);
+    const settings = await getSettings(clip.owner);
     const container = await call("POST", `/${igUserId}/media`, {
       media_type: "REELS", video_url: `${config.publicUrl}/api/public/ig/${clip.publishToken}.mp4`,
       caption: instagramCaption(clip, settings), share_to_feed: "true", access_token: token,
@@ -51,19 +51,20 @@ export async function publishToInstagram(clipObjectId, { pollMs = 10000, maxPoll
     const media = await call("POST", `/${igUserId}/media_publish`, { creation_id: container.id, access_token: token });
     const info = await call("GET", `/${media.id}`, { fields: "permalink", access_token: token }).catch(() => ({}));
     Object.assign(pub, { status: "published", externalId: media.id, url: info.permalink, error: undefined, updatedAt: new Date() });
-    await countPublish("instagram");
-    logEvent("published", `Published to Instagram: ${clip.title}`, { level: "success", clip: clip._id, platform: "instagram", url: info.permalink });
+    await countPublish(clip.owner, "instagram");
+    logEvent("published", `Published to Instagram: ${clip.title}`, { level: "success", owner: clip.owner, clip: clip._id, platform: "instagram", url: info.permalink });
   } catch (e) {
     Object.assign(pub, { status: pub.attempts < 3 ? "queued" : "failed", error: String(e.message).slice(0, 500), updatedAt: new Date() });
     logEvent("failed", `Instagram ${pub.status === "queued" ? "will retry" : "failed"}: ${clip.title} (${String(e.message).slice(0, 120)})`,
-      { level: pub.status === "queued" ? "warn" : "error", clip: clip._id, platform: "instagram" });
+      { level: pub.status === "queued" ? "warn" : "error", owner: clip.owner, clip: clip._id, platform: "instagram" });
   } finally {
-    await removeFile(clip.publishFile);
+    const file = clip.publishFile;
     clip.publishFile = undefined;
     clip.publishToken = undefined;
     if (clip.publications.every((p) => p.status === "published")) clip.status = "published";
     else if (clip.publications.some((p) => p.status === "failed") && !clip.publications.some((p) => ["queued", "uploading"].includes(p.status))) clip.status = "failed";
     await clip.save();
-    notify("clips");
+    await releaseFile(file);
+    notify("clips", { owner: clip.owner });
   }
 }

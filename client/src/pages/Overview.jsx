@@ -1,4 +1,4 @@
-import { Clapperboard, Laptop, Pause, Play } from "lucide-react";
+import { Clapperboard, Pause, Play, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, timeAgo } from "../api.js";
@@ -36,7 +36,7 @@ function VodForm({ creators }) {
     e.preventDefault();
     try {
       await api("/commands", { method: "POST", body: { type: "vod", payload: { url: url.trim(), ...(max ? { maxMinutes: Number(max) } : {}), ...(creator ? { creatorId: creator } : {}) } } });
-      toast("Sent to the laptop. Clips will appear for approval when it's done."); setUrl(""); setMax("");
+      toast("Sent to the clipping server. Clips will appear for approval when it's done."); setUrl(""); setMax("");
     } catch (err) { toast(err.message, true); }
   };
   return (
@@ -49,7 +49,7 @@ function VodForm({ creators }) {
         <input type="number" min="1" placeholder="Max min" value={max} onChange={(e) => setMax(e.target.value)} className="sm:!w-28" />
         <Button variant="primary"><Clapperboard size={15} /> Find clips</Button>
       </form>
-      <p className="mt-2 text-xs text-muted">The laptop downloads the VOD and its chat replay, finds the moments and edits them. Nothing is published until you approve.</p>
+      <p className="mt-2 text-xs text-muted">The server downloads the VOD and its chat replay, finds the moments and edits them. Nothing is published until you approve.</p>
     </Card>
   );
 }
@@ -67,14 +67,16 @@ export default function Overview() {
   const w = ov.worker || {};
   const sessions = w.online ? w.sessions || [] : [];
   const c = ov.clips || {};
+  const isAdmin = ov.role === "admin";
+  const paused = isAdmin ? ov.workerPaused : ov.paused;     // the admin pauses the whole server, a user only their own creators
   const togglePause = async () => {
-    try { await api("/commands", { method: "POST", body: { type: ov.paused ? "resume" : "pause" } }); toast(ov.paused ? "Resuming…" : "Pausing… (current recordings continue)"); reload(); }
+    try { await api("/commands", { method: "POST", body: { type: paused ? "resume" : "pause" } }); toast(paused ? "Resuming…" : "Pausing… (current recordings continue)"); reload(); }
     catch (e) { toast(e.message, true); }
   };
   const byDay = an?.clipsByDay || [];
   const steps = [
     { done: ov.creators > 0, label: "Add a creator to monitor", to: "/creators" },
-    { done: !!w.lastSeen, label: "Link your laptop (the worker that records and edits)", to: "/settings" },
+    ...(isAdmin ? [{ done: !!w.lastSeen, label: "Start the clipping server (it records and edits)", to: "/settings" }] : []),
     { done: !!ov.accounts?.youtube, label: "Connect YouTube", to: "/accounts" },
     { done: !!ov.accounts?.instagram, label: "Connect Instagram (optional)", to: "/accounts", optional: true },
   ];
@@ -99,15 +101,15 @@ export default function Overview() {
 
       <div className={`relative overflow-hidden rounded-2xl border p-5 ${sessions.length ? "border-bad/25 bg-gradient-to-br from-bad/[.05] to-panel" : "border-line bg-panel"}`}>
         <div className="flex flex-wrap items-center gap-3">
-          <span className={`grid h-11 w-11 place-items-center rounded-xl ${w.online ? "bg-ok/15 text-ok" : "bg-panel2 text-muted"}`}><Laptop size={22} /></span>
+          <span className={`grid h-11 w-11 place-items-center rounded-xl ${w.online ? "bg-ok/15 text-ok" : "bg-panel2 text-muted"}`}><Server size={22} /></span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-lg font-bold">
-              <span className={`h-2.5 w-2.5 rounded-full ${sessions.length ? "rec bg-bad" : w.online ? (ov.paused ? "bg-warn" : "bg-ok") : "bg-muted"}`} />
-              {sessions.length ? `Recording ${sessions.length} live stream${sessions.length > 1 ? "s" : ""}` : !w.online ? "Laptop offline" : ov.paused ? "Monitoring paused" : "Watching for live streams"}
+              <span className={`h-2.5 w-2.5 rounded-full ${sessions.length ? "rec bg-bad" : w.online ? (paused ? "bg-warn" : "bg-ok") : "bg-muted"}`} />
+              {sessions.length ? `Recording ${sessions.length} live stream${sessions.length > 1 ? "s" : ""}` : !w.online ? "Clipping server offline" : paused ? "Monitoring paused" : "Watching for live streams"}
             </div>
-            <div className="text-sm text-muted">{w.hostname || "Laptop"} · last seen {timeAgo(w.lastSeen)}{w.freeGb != null ? ` · ${w.freeGb} GB free` : ""} · {ov.creatorsEnabled} creators monitored</div>
+            <div className="text-sm text-muted">{isAdmin ? (w.hostname || "Clipping server") : "Clipping server"} · last seen {timeAgo(w.lastSeen)}{isAdmin && w.freeGb != null ? ` · ${w.freeGb} GB free` : ""} · {ov.creatorsEnabled} of your creators monitored</div>
           </div>
-          {w.online && <Button onClick={togglePause} variant={ov.paused ? "ok" : "default"}>{ov.paused ? <><Play size={15} /> Resume</> : <><Pause size={15} /> Pause</>}</Button>}
+          {w.online && <Button onClick={togglePause} variant={paused ? "ok" : "default"}>{paused ? <><Play size={15} /> Resume</> : <><Pause size={15} /> Pause</>}</Button>}
         </div>
         {sessions.length > 0 && (
           <div className="mt-4 grid gap-2 lg:grid-cols-2">

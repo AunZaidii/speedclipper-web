@@ -21,6 +21,15 @@ export async function removeFile(id) {
   try { await media().delete(new mongoose.Types.ObjectId(id)); } catch { /* already gone */ }
 }
 
+/** Remove a file once no clip uses it any more (several users' copies of a moment share thumbnail/preview).
+ *  Call AFTER the clip that let go of it was saved or deleted. */
+export async function releaseFile(id) {
+  if (!id) return;
+  const { Clip } = await import("./models.js");
+  const used = await Clip.exists({ $or: [{ thumbFile: id }, { previewFile: id }, { publishFile: id }] });
+  if (!used) await removeFile(id);
+}
+
 /** Stream a GridFS file with HTTP Range support (video seeking). */
 export async function streamFile(id, req, res) {
   const _id = new mongoose.Types.ObjectId(id);

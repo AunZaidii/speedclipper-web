@@ -29,7 +29,7 @@ function useReveal() {
   }, []);
 }
 
-function Nav({ setupNeeded }) {
+function Nav({ signupOpen }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8);
@@ -48,7 +48,7 @@ function Nav({ setupNeeded }) {
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
           <Link to="/login" className="rounded-full px-3 py-2 text-[14px] font-medium text-neutral-700 hover:text-neutral-900">Log in</Link>
-          <Link to="/signup" className="rounded-full bg-neutral-900 px-4 py-2 text-[14px] font-medium text-white transition hover:bg-neutral-700">{setupNeeded ? "Get started" : "Sign up"}</Link>
+          <Link to={signupOpen ? "/signup" : "/login"} className="rounded-full bg-neutral-900 px-4 py-2 text-[14px] font-medium text-white transition hover:bg-neutral-700">{signupOpen ? "Get started" : "Log in"}</Link>
         </div>
       </nav>
     </header>
@@ -95,7 +95,7 @@ function Hero({ cta, ctaLabel }) {
           </Link>
           <a href="#how" className="text-[15px] font-medium text-neutral-700 underline decoration-neutral-300 underline-offset-[6px] hover:decoration-neutral-900">See how it works</a>
         </div>
-        <p className="mt-10 text-[13px] text-neutral-500">Free · Runs on your own laptop · Always credits the creator</p>
+        <p className="mt-10 text-[13px] text-neutral-500">Free · Nothing to install · Always credits the creator</p>
       </div>
 
       <figure className="reveal relative mx-auto w-full max-w-[440px] lg:max-w-none" style={{ transitionDelay: "120ms" }}>
@@ -156,9 +156,9 @@ function Feature({ img, alt, flip, title, accent, text, points, id }) {
 }
 
 const FAQS = [
-  ["Is it free?", "Yes. The clipping runs on your own laptop, and the website fits on free hosting."],
+  ["Is it free?", "Yes. Create an account, add the streamers you like and connect your channel. That's it."],
   ["Does it credit the creator?", "Always. Every clip description includes a credit line to the streamer, and it can't be removed."],
-  ["Do I need a powerful computer?", "No. Any recent laptop works: captions run on the processor and video uses the graphics chip when it can."],
+  ["Do I need to install anything?", "No. Recording, editing and uploading all happen on our servers, around the clock. You only use the website, from your laptop or your phone."],
   ["Can I check clips before they go up?", "Yes. Turn off auto-upload and approve each clip yourself, with a swipe, from your phone."],
 ];
 
@@ -225,14 +225,14 @@ function Footer() {
   );
 }
 
-export default function Landing({ setupNeeded }) {
-  const cta = setupNeeded ? "/signup" : "/login";
-  const ctaLabel = setupNeeded ? "Get started free" : "Open dashboard";
+export default function Landing({ signupOpen = true }) {
+  const cta = signupOpen ? "/signup" : "/login";
+  const ctaLabel = signupOpen ? "Get started free" : "Log in";
   useReveal();
   useEffect(() => { document.title = "SpeedClipper: live streams into Shorts, automatically"; }, []);
   return (
     <div className="lp min-h-screen">
-      <Nav setupNeeded={setupNeeded} />
+      <Nav signupOpen={signupOpen} />
       <main>
         <Hero cta={cta} ctaLabel={ctaLabel} />
         <How />

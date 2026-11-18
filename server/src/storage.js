@@ -3,8 +3,9 @@
 //  - published / rejected / failed clips: preview removed after KEEP_DONE_DAYS
 //  - any clip: preview removed after KEEP_ANY_DAYS
 //  - if media still exceeds SOFT_CAP_MB, the oldest previews go first until it's back under TARGET_MB
+// Users following the same channel share preview files; a file is deleted only when no clip uses it.
 import mongoose from "mongoose";
-import { removeFile } from "./media.js";
+import { releaseFile } from "./media.js";
 import { Clip } from "./models.js";
 
 const DAY = 86400000;
@@ -19,8 +20,8 @@ async function mediaBytes() {
 async function dropPreviews(filter, limit = 500) {
   const clips = await Clip.find({ ...filter, previewFile: { $ne: null } }).sort({ createdAt: 1 }).limit(limit).select("previewFile");
   for (const c of clips) {
-    await removeFile(c.previewFile);
     await Clip.updateOne({ _id: c._id }, { $unset: { previewFile: 1 } });
+    await releaseFile(c.previewFile);
   }
   return clips.length;
 }

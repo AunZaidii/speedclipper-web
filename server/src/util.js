@@ -1,4 +1,5 @@
-import { Quota, getSettings } from "./models.js";
+import { config } from "./config.js";
+import { Quota, getUserSettings } from "./models.js";
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -36,12 +37,22 @@ export function pacificDay(d = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
-export async function canPublish(platform, now = new Date()) {
-  const s = await getSettings();
+const quotaId = (owner, platform, d) => `${owner}:${platform}:${pacificDay(d)}`;
+const PROJECT_YT = (d) => `project:youtube:${pacificDay(d)}`;
+
+/** Can this user publish to `platform` right now (their limits + the shared Google project's daily cap)? */
+export async function canPublish(owner, platform, now = new Date()) {
+  const s = await getUserSettings(owner);
   if (!s.uploadsEnabled) return { ok: false, reason: "uploads are switched off" };
-  const q = await Quota.findById(`${platform}:${pacificDay(now)}`).lean();
+  const q = await Quota.findById(quotaId(owner, platform, now)).lean();
   if ((q?.uploads || 0) >= s.maxUploadsPerDay) return { ok: false, reason: `daily limit (${s.maxUploadsPerDay}) reached` };
-  const last = await Quota.find({ _id: new RegExp(`^${platform}:`) }).sort({ lastAt: -1 }).limit(1).lean();
+  if (platform === "youtube") {
+    const p = await Quota.findById(PROJECT_YT(now)).lean();
+    if ((p?.uploads || 0) >= config.youtubeProjectDailyUploads) {
+      return { ok: false, reason: "the site's YouTube upload allowance for today is used up; uploads continue after midnight Pacific" };
+    }
+  }
+  const last = await Quota.find({ _id: new RegExp(`^${owner}:${platform}:`) }).sort({ lastAt: -1 }).limit(1).lean();
   const gapMs = s.minMinutesBetweenUploads * 60000;
   if (last[0]?.lastAt && now - new Date(last[0].lastAt) < gapMs) {
     return { ok: false, reason: `waiting ${s.minMinutesBetweenUploads} min between uploads`,
@@ -50,8 +61,17 @@ export async function canPublish(platform, now = new Date()) {
   return { ok: true };
 }
 
-export async function countPublish(platform, now = new Date()) {
-  await Quota.updateOne({ _id: `${platform}:${pacificDay(now)}` }, { $inc: { uploads: 1 }, $set: { lastAt: now } }, { upsert: true });
+export async function countPublish(owner, platform, now = new Date()) {
+  await Quota.updateOne({ _id: quotaId(owner, platform, now) }, { $inc: { uploads: 1 }, $set: { lastAt: now } }, { upsert: true });
+  if (platform === "youtube") await Quota.updateOne({ _id: PROJECT_YT(now) }, { $inc: { uploads: 1 }, $set: { lastAt: now } }, { upsert: true });
+}
+
+export async function uploadsToday(owner, platform, now = new Date()) {
+  return (await Quota.findById(quotaId(owner, platform, now)).lean())?.uploads || 0;
+}
+
+export async function lastUploadAt(owner, platform) {
+  return (await Quota.find({ _id: new RegExp(`^${owner}:${platform}:`) }).sort({ lastAt: -1 }).limit(1).lean())[0]?.lastAt;
 }
 
 export function ensureCredit(description, creditLine) {

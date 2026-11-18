@@ -55,7 +55,7 @@ export default function ActivityPage() {
         </Card>
       </div>
       <div className="space-y-5">
-        <Card title="Commands sent to the laptop">
+        <Card title="Commands sent to the clipping server">
           {!cmds?.length ? <p className="text-sm text-muted">None yet. Pause/resume, “check now”, stop recording and VOD jobs show up here.</p> : (
             <div className="space-y-2">
               {cmds.map((c) => (
@@ -63,20 +63,22 @@ export default function ActivityPage() {
                   <Badge kind={c.status === "done" ? "ready" : c.status === "failed" ? "failed" : "pending"}>{c.status}</Badge>
                   <div className="min-w-0 flex-1">
                     <div>{c.type.replace("_", " ")}{c.payload?.url ? `: ${c.payload.url}` : ""}</div>
-                    <div className="text-xs text-muted">{c.result || (c.status === "pending" ? "waiting for the laptop (next heartbeat ≤ 30 s)" : "")} · {timeAgo(c.createdAt)}</div>
+                    <div className="text-xs text-muted">{c.result || (c.status === "pending" ? "waiting for the server (≤ 30 s)" : "")} · {timeAgo(c.createdAt)}</div>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </Card>
-        <Card title={`Laptop log${worker?.online ? "" : " (offline)"}`}>
-          {worker?.log?.length ? (
-            <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-panel2 p-3 font-mono text-[11px] leading-relaxed text-muted">
-              {worker.log.slice().reverse().join("\n")}
-            </pre>
-          ) : <p className="text-sm text-muted">The laptop sends its latest log lines with every heartbeat.</p>}
-        </Card>
+        {worker?.log !== undefined && (   // admin only: other users don't get the server's log
+          <Card title={`Server log${worker?.online ? "" : " (offline)"}`}>
+            {worker?.log?.length ? (
+              <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-panel2 p-3 font-mono text-[11px] leading-relaxed text-muted">
+                {worker.log.slice().reverse().join("\n")}
+              </pre>
+            ) : <p className="text-sm text-muted">The server sends its latest log lines every 30 seconds.</p>}
+          </Card>
+        )}
       </div>
     </div>
   );

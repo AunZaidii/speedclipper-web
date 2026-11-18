@@ -24,6 +24,10 @@ export const config = {
   workerKey: required("WORKER_KEY", "dev-worker-key"),
   google: { clientId: env.GOOGLE_CLIENT_ID || "", clientSecret: env.GOOGLE_CLIENT_SECRET || "" },
   meta: { appId: env.META_APP_ID || "", appSecret: env.META_APP_SECRET || "", graphVersion: env.META_GRAPH_VERSION || "v23.0" },
+  // anyone can create an account (set SIGNUP_OPEN=false to allow only the admin)
+  signupOpen: (env.SIGNUP_OPEN || "true").toLowerCase() !== "false",
+  // all users share one Google Cloud project: YouTube's videos.insert allowance per day (raise via Google's quota form)
+  youtubeProjectDailyUploads: Number(env.YOUTUBE_PROJECT_DAILY_UPLOADS || 90),
   maxPreviewBytes: 25 * 1024 * 1024,
   maxPublishFileBytes: 200 * 1024 * 1024,
 };

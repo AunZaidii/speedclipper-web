@@ -185,9 +185,9 @@ export default function Accounts() {
         <Platform name="Instagram" kind="instagram" acc={data.instagram} configured={data.configured.instagram} onChange={reload}
           icon={<InstagramMark />} text="Post clips as Reels."
           note="Works with Instagram Business or Creator accounts linked to a Facebook Page." />
-        <AiTitles />
+        {data.isAdmin && <AiTitles />}
       </div>
-      <OwnerSetup data={data} />
+      {data.isAdmin && <OwnerSetup data={data} />}
     </div>
   );
 }

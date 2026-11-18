@@ -43,18 +43,19 @@ async function fbGet(url) {
 
 // ---------------------------------------------------------------- status
 accounts.get("/", requireUser, async (req, res) => {
-  const list = await Account.find().select("-tokens").lean();
+  const list = await Account.find({ owner: req.user._id }).select("-tokens").lean();
   res.json({
     youtube: list.find((a) => a.platform === "youtube") || null,
     instagram: list.find((a) => a.platform === "instagram") || null,
     configured: { youtube: !!(config.google.clientId && config.google.clientSecret), instagram: !!(config.meta.appId && config.meta.appSecret) },
     redirects: { youtube: ytRedirect(), instagram: igRedirect() },
+    isAdmin: req.user.role === "admin",
   });
 });
 
 accounts.post("/:platform/disconnect", requireUser, async (req, res) => {
   if (!["youtube", "instagram"].includes(req.params.platform)) throw new HttpError(404, "unknown platform");
-  await Account.deleteOne({ platform: req.params.platform });
+  await Account.deleteOne({ owner: req.user._id, platform: req.params.platform });
   res.json({ ok: true });
 });
 
@@ -71,15 +72,15 @@ accounts.get("/youtube/callback", requireUser, async (req, res) => {
   const { tokens } = await googleClient().getToken(String(req.query.code || ""));
   if (!tokens.refresh_token) throw new HttpError(400, "Google returned no refresh token; remove SpeedClipper at myaccount.google.com/permissions and connect again");
   if (!String(tokens.scope || "").includes("youtube.upload")) throw new HttpError(400, "the YouTube upload permission was not granted; tick it on Google's screen");
-  await Account.updateOne({ platform: "youtube" }, { $set: {
+  await Account.updateOne({ owner: req.user._id, platform: "youtube" }, { $set: {
     displayName: "YouTube channel", tokens: encrypt({ refresh_token: tokens.refresh_token }),
     connectedAt: new Date(), expiresAt: null } }, { upsert: true });
   res.redirect("/accounts?connected=youtube");
 });
 
-/** Fresh access token for the worker. */
-export async function youtubeAccessToken() {
-  const acc = await Account.findOne({ platform: "youtube" });
+/** Fresh access token for the worker, for the user who owns the clip being uploaded. */
+export async function youtubeAccessToken(owner) {
+  const acc = await Account.findOne({ owner, platform: "youtube" });
   if (!acc) throw new HttpError(409, "YouTube is not connected");
   const client = googleClient();
   client.setCredentials({ refresh_token: decrypt(acc.tokens).refresh_token });
@@ -113,16 +114,16 @@ accounts.get("/instagram/callback", requireUser, async (req, res) => {
   const page = (pages.data || []).find((p) => p.instagram_business_account);
   if (!page) throw new HttpError(400, "no Instagram Business/Creator account is linked to the Facebook Pages you allowed");
   const ig = page.instagram_business_account;
-  await Account.updateOne({ platform: "instagram" }, { $set: {
+  await Account.updateOne({ owner: req.user._id, platform: "instagram" }, { $set: {
     displayName: `@${ig.username}`, externalId: ig.id, connectedAt: new Date(),
     tokens: encrypt({ userToken: long.access_token }),
     expiresAt: long.expires_in ? new Date(Date.now() + long.expires_in * 1000) : null } }, { upsert: true });
   res.redirect("/accounts?connected=instagram");
 });
 
-/** Long-lived Instagram token, refreshed when it has < 10 days left. */
-export async function instagramToken() {
-  const acc = await Account.findOne({ platform: "instagram" });
+/** Long-lived Instagram token for this user, refreshed when it has < 10 days left. */
+export async function instagramToken(owner) {
+  const acc = await Account.findOne({ owner, platform: "instagram" });
   if (!acc) throw new HttpError(409, "Instagram is not connected");
   let { userToken } = decrypt(acc.tokens);
   if (acc.expiresAt && acc.expiresAt - Date.now() < 10 * 86400000) {

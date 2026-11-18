@@ -15,7 +15,7 @@ function AddCreator({ onAdded }) {
     try {
       const c = await api("/creators", { method: "POST", body: { link: f.link, name: f.name, hashtags: f.hashtags, autoUpload: f.autoUpload,
         targets: { youtube: f.youtube, instagram: f.instagram } } });
-      toast(`Added ${c.name}. The laptop picks it up within a minute.`);
+      toast(`Added ${c.name}. The clipping server picks it up within a minute.`);
       setF({ ...f, link: "", name: "", hashtags: "" });
       onAdded();
     } catch (err) { toast(err.message, true); } finally { setBusy(false); }
@@ -70,7 +70,7 @@ export default function Creators() {
   const { tick } = useLive();
   const { data, reload } = usePoll(() => api("/creators"), 30000, [tick.creators, tick.worker, tick.clips]);
   const command = async (type, c) => {
-    try { await api("/commands", { method: "POST", body: { type, payload: { creatorId: c._id } } }); toast(type === "check_now" ? `Asked the laptop to check ${c.name} now` : `Stopping ${c.name}'s recording…`); }
+    try { await api("/commands", { method: "POST", body: { type, payload: { creatorId: c._id } } }); toast(type === "check_now" ? `Asked the server to check ${c.name} now` : `Stopping ${c.name}'s recording…`); }
     catch (e) { toast(e.message, true); }
   };
   const [editing, setEditing] = useState(null);

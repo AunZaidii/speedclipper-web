@@ -34,7 +34,7 @@ export default function Streams() {
               </Card>
             ))}
           </div>
-        ) : <Empty>No one is live right now. The laptop checks every creator every minute.</Empty>}
+        ) : <Empty>No one is live right now. The server checks every creator every minute.</Empty>}
       </section>
 
       <section>

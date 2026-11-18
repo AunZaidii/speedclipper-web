@@ -1,4 +1,4 @@
-// Single-owner login: the first visit creates the owner account; nobody else can sign up.
+// Accounts: anyone can sign up (config.signupOpen); the first account is the admin.
 import bcrypt from "bcryptjs";
 import express from "express";
 import rateLimit from "express-rate-limit";
@@ -13,6 +13,11 @@ const MAX_AGE = 30 * 24 * 3600 * 1000;
 function setSession(res, user) {
   const token = jwt.sign({ sub: String(user._id), v: user.tokenVersion }, config.jwtSecret, { expiresIn: "30d" });
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: config.isProd, maxAge: MAX_AGE, path: "/" });
+}
+
+export function requireAdmin(req, res, next) {
+  if (req.user?.role !== "admin") return res.status(403).json({ error: "only the site admin can do this" });
+  next();
 }
 
 export async function requireUser(req, res, next) {
@@ -37,17 +42,28 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHe
   skipSuccessfulRequests: true, message: { error: "too many failed attempts; try again in 15 minutes" } });
 
 authRouter.get("/status", async (req, res) => {
-  res.json({ setupNeeded: (await User.countDocuments()) === 0 });
+  const setupNeeded = (await User.countDocuments()) === 0;
+  res.json({ setupNeeded, signupOpen: setupNeeded || config.signupOpen });
 });
 
-authRouter.post("/setup", loginLimiter, async (req, res) => {
-  if (await User.countDocuments()) return res.status(409).json({ error: "the owner account already exists; sign in" });
+const me = (u) => ({ email: u.email, role: u.role || "user" });
+
+const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false,
+  skip: () => !!process.env.VITEST,
+  message: { error: "too many sign-ups from this network; try again later" } });
+
+async function signup(req, res) {
+  const first = (await User.countDocuments()) === 0;
+  if (!first && !config.signupOpen) return res.status(403).json({ error: "sign-up is closed on this site; ask the admin for an account" });
   const r = creds.safeParse(req.body);
   if (!r.success) return res.status(400).json({ error: r.error.issues[0].message });
-  const user = await User.create({ email: r.data.email, passwordHash: await bcrypt.hash(r.data.password, 12) });
+  if (await User.exists({ email: r.data.email.toLowerCase() })) return res.status(409).json({ error: "an account with this email already exists; log in instead" });
+  const user = await User.create({ email: r.data.email, passwordHash: await bcrypt.hash(r.data.password, 12), role: first ? "admin" : "user" });
   setSession(res, user);
-  res.json({ email: user.email });
-});
+  res.json(me(user));
+}
+authRouter.post("/signup", signupLimiter, signup);
+authRouter.post("/setup", signupLimiter, signup);   // older clients
 
 authRouter.post("/login", loginLimiter, async (req, res) => {
   const r = creds.safeParse(req.body);
@@ -55,7 +71,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
   const ok = user && (await bcrypt.compare(r.data.password, user.passwordHash));
   if (!ok) return res.status(401).json({ error: "wrong email or password" });
   setSession(res, user);
-  res.json({ email: user.email });
+  res.json(me(user));
 });
 
 authRouter.post("/logout", (req, res) => {
@@ -63,7 +79,7 @@ authRouter.post("/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-authRouter.get("/me", requireUser, (req, res) => res.json({ email: req.user.email }));
+authRouter.get("/me", requireUser, (req, res) => res.json(me(req.user)));
 
 authRouter.post("/password", requireUser, async (req, res) => {
   const { current, next } = req.body || {};

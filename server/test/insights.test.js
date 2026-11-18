@@ -8,7 +8,7 @@ import { startMonitor } from "../src/routes/insights.js";
 import { WorkerStatus } from "../src/models.js";
 import { config } from "../src/config.js";
 import { resetMedia } from "../src/media.js";
-import { Account, Clip, Event, LiveSession } from "../src/models.js";
+import { Account, Clip, Event, LiveSession, User } from "../src/models.js";
 
 let mem, app;
 const W = { "x-worker-key": config.workerKey };
@@ -23,6 +23,7 @@ async function owner() {
   await agent.post("/api/auth/setup").send({ email: "me@example.com", password: "correct horse battery" }).expect(200);
   return agent;
 }
+const acc = async (platform) => Account.create({ owner: (await User.findOne({ email: "me@example.com" }))._id, platform, tokens: "x" });
 const push = (creatorId, extra = {}) => request(app).post("/api/worker/clips").set(W)
   .field("meta", JSON.stringify({ clipId: `c_${Math.random().toString(36).slice(2, 8)}`, creatorId, source: "live", title: "Clip #shorts",
     description: "d", score: 8, ...extra }));
@@ -42,7 +43,7 @@ describe("commands", () => {
     expect((await request(app).post("/api/worker/heartbeat").set(W).send({})).body.commands).toEqual([]);   // delivered once
     const pauseId = hb.commands[1].id;
     await request(app).post(`/api/worker/commands/${pauseId}/result`).set(W).send({ ok: true, result: "monitoring paused" }).expect(200);
-    expect((await a.get("/api/overview")).body.paused).toBe(true);
+    expect((await a.get("/api/overview")).body.workerPaused).toBe(true);   // the admin pauses the whole worker
     const list = (await a.get("/api/commands")).body;
     expect(list.find((x) => x._id === pauseId).status).toBe("done");
   });
@@ -53,7 +54,7 @@ describe("live sessions", () => {
     const a = await owner();
     const c = (await a.post("/api/creators").send({ link: "@IShowSpeed", name: "IShowSpeed" })).body;
     const now = Math.floor(Date.now() / 1000);
-    const s = { creatorId: c._id, creator: "IShowSpeed", platform: "youtube", videoId: "v1", title: "GTA 6", since: now - 600, recordedUntil: now, chatMessages: 900, moments: 2 };
+    const s = { creatorId: c.channel, creator: "IShowSpeed", platform: "youtube", videoId: "v1", title: "GTA 6", since: now - 600, recordedUntil: now, chatMessages: 900, moments: 2 };
     await request(app).post("/api/worker/heartbeat").set(W).send({ sessions: [s] });
     await request(app).post("/api/worker/heartbeat").set(W).send({ sessions: [{ ...s, moments: 3 }] });
     let list = (await a.get("/api/sessions")).body;
@@ -73,7 +74,7 @@ describe("live sessions", () => {
 describe("queue, bulk, retry, search", () => {
   it("queue shows ETAs spaced by the upload gap, best score first", async () => {
     const a = await owner();
-    await Account.create({ platform: "youtube", tokens: "x" });
+    await acc("youtube");
     const c = (await a.post("/api/creators").send({ link: "@IShowSpeed" })).body;
     await push(c._id, { score: 7.5, title: "low" });
     await push(c._id, { score: 9.5, title: "high" });
@@ -136,7 +137,7 @@ describe("analytics, secrets, events", () => {
     expect(r.anthropicKey).not.toContain("x".repeat(20));
     expect((await a.get("/api/secrets")).body.anthropicKey).toMatch(/^sk-ant-api…|^sk-ant-ap/);
     expect((await request(app).get("/api/worker/config").set(W)).body.anthropicKey).toBe(key);
-    const raw = await mongoose.connection.db.collection("settings").findOne({ _id: "global" });
+    const raw = await mongoose.connection.db.collection("settings").findOne({ _id: "platform" });
     expect(JSON.stringify(raw)).not.toContain(key);
     await a.put("/api/secrets/anthropic").send({ key: "" }).expect(200);
     expect((await request(app).get("/api/worker/config").set(W)).body.anthropicKey).toBe("");
@@ -165,10 +166,11 @@ describe("analytics, secrets, events", () => {
 });
 
 describe("offline detection", () => {
-  it("ends open recordings when the laptop stops sending heartbeats", async () => {
+  it("ends open recordings when the worker stops sending heartbeats", async () => {
     const a = await owner();
+    const c = (await a.post("/api/creators").send({ link: "@SomeX" })).body;
     const now = Math.floor(Date.now() / 1000);
-    await request(app).post("/api/worker/heartbeat").set(W).send({ sessions: [{ creator: "X", videoId: "v9", title: "t", since: now - 60, recordedUntil: now }] });
+    await request(app).post("/api/worker/heartbeat").set(W).send({ sessions: [{ creatorId: c.channel, creator: "X", videoId: "v9", title: "t", since: now - 60, recordedUntil: now }] });
     await WorkerStatus.updateOne({ _id: "worker" }, { $set: { lastSeen: new Date(Date.now() - 5 * 60000) } });
     const h = startMonitor(200);
     await sleep(500);
@@ -183,7 +185,7 @@ describe("offline detection", () => {
 describe('publish next', () => {
   it('pinned clips jump the queue and the worker job order', async () => {
     const a = await owner();
-    await Account.create({ platform: 'youtube', tokens: 'x' });
+    await acc("youtube");
     const c = (await a.post('/api/creators').send({ link: '@IShowSpeed' })).body;
     await push(c._id, { score: 9.5, title: 'best' });
     const low = (await push(c._id, { score: 7.1, title: 'low' })).body.id;

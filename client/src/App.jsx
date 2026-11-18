@@ -43,10 +43,10 @@ function Brand() {
   );
 }
 
-function Login({ setupNeeded, mode, onDone }) {
+function Login({ setupNeeded, signupOpen, mode, onDone }) {
   // The page decides the form: /signup creates the account, /login logs in.
   const signup = mode === "signup";
-  const closed = signup && !setupNeeded; // single-owner: sign-up closes once the owner exists
+  const closed = signup && !signupOpen;   // the admin can close sign-up (SIGNUP_OPEN=false)
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,7 +55,7 @@ function Login({ setupNeeded, mode, onDone }) {
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
-    try { onDone(await api(signup ? "/auth/setup" : "/auth/login", { method: "POST", body: { email, password } })); navigate("/"); }
+    try { onDone(await api(signup ? "/auth/signup" : "/auth/login", { method: "POST", body: { email, password } })); navigate("/"); }
     catch (err) { toast(err.message, true); } finally { setBusy(false); }
   };
   const linkCls = "font-medium text-neutral-900 underline decoration-neutral-300 underline-offset-4 hover:decoration-neutral-900";
@@ -66,7 +66,7 @@ function Login({ setupNeeded, mode, onDone }) {
         {closed ? (
           <div className="m-auto w-full max-w-[380px] py-12">
             <h1 className="text-[34px] font-semibold leading-tight tracking-[-.03em]">Sign-up is <span className="serif font-normal">closed</span></h1>
-            <p className="mt-2 text-[15px] leading-relaxed text-neutral-600">This SpeedClipper already has its owner account. If that's you, log in.</p>
+            <p className="mt-2 text-[15px] leading-relaxed text-neutral-600">New accounts aren't being accepted on this site right now. If you already have one, log in.</p>
             <Link to="/login" className="mt-8 block w-full rounded-full bg-neutral-900 py-3.5 text-center text-[15px] font-medium text-white transition hover:bg-neutral-700">Go to log in</Link>
             <p className="mt-6 text-center text-[14px] text-neutral-600"><Link className={linkCls} to="/">Back to the home page</Link></p>
           </div>
@@ -76,7 +76,7 @@ function Login({ setupNeeded, mode, onDone }) {
               {signup ? <>Create your <span className="serif font-normal">account</span></> : <>Welcome <span className="serif font-normal">back</span></>}
             </h1>
             <p className="mt-2 text-[15px] leading-relaxed text-neutral-600">
-              {signup ? "Set up your clipping studio. This becomes the owner account." : "Log in to your clipping studio."}
+              {signup ? (setupNeeded ? "You're the first one here, so this becomes the admin account." : "Free. Add the streamers you like and get Shorts made for you.") : "Log in to your clipping studio."}
             </p>
             <div className="mt-8 space-y-4">
               <label className="block"><span className="mb-1.5 block text-[13px] font-medium text-neutral-700">Email</span>
@@ -91,7 +91,7 @@ function Login({ setupNeeded, mode, onDone }) {
             <p className="mt-6 text-center text-[14px] text-neutral-600">
               {signup
                 ? <>Already have an account? <Link className={linkCls} to="/login">Log in</Link></>
-                : setupNeeded
+                : signupOpen
                   ? <>New here? <Link className={linkCls} to="/signup">Create an account</Link></>
                   : <Link className={linkCls} to="/">Back to the home page</Link>}
             </p>
@@ -197,11 +197,11 @@ function Shell({ me, onLogout }) {
 
 export default function App() {
   const [me, setMe] = useState(undefined);
-  const [setupNeeded, setSetupNeeded] = useState(false);
+  const [status, setStatus] = useState({ setupNeeded: false, signupOpen: true });
   const check = async () => {
     try { setMe(await api("/auth/me")); } catch {
       setMe(null);
-      try { setSetupNeeded((await api("/auth/status")).setupNeeded); } catch { /* offline */ }
+      try { setStatus(await api("/auth/status")); } catch { /* offline */ }
     }
   };
   useEffect(() => { check(); }, []);
@@ -212,12 +212,13 @@ export default function App() {
   }, []);
   if (me === undefined) return <div className="grid min-h-screen place-items-center"><Brand /></div>;
   if (!me) {
-    const done = (u) => { setSetupNeeded(false); setMe(u); };
+    const done = (u) => { setStatus((s) => ({ ...s, setupNeeded: false })); setMe(u); };
+    const { setupNeeded, signupOpen } = status;
     return (
       <Routes>
-        <Route path="/" element={<Landing setupNeeded={setupNeeded} />} />
-        <Route path="/login" element={<Login key="login" setupNeeded={setupNeeded} mode="login" onDone={done} />} />
-        <Route path="/signup" element={<Login key="signup" setupNeeded={setupNeeded} mode="signup" onDone={done} />} />
+        <Route path="/" element={<Landing signupOpen={signupOpen} />} />
+        <Route path="/login" element={<Login key="login" setupNeeded={setupNeeded} signupOpen={signupOpen} mode="login" onDone={done} />} />
+        <Route path="/signup" element={<Login key="signup" setupNeeded={setupNeeded} signupOpen={signupOpen} mode="signup" onDone={done} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
