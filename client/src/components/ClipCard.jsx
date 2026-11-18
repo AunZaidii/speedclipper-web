@@ -39,7 +39,12 @@ export function ClipDetail({ clip: initial, onClose, onChange }) {
       <div className="bg-black md:rounded-l-2xl">
         {clip.previewFile
           ? <video src={`/api/clips/${clip._id}/preview`} poster={clip.thumbFile ? `/api/clips/${clip._id}/thumb` : undefined} controls autoPlay playsInline className="max-h-[60vh] w-full md:max-h-[94vh]" />
-          : <div className="grid aspect-[9/16] place-items-center text-sm text-muted">No preview</div>}
+          : clip.thumbFile
+            ? <div className="relative">
+                <img src={`/api/clips/${clip._id}/thumb`} alt="" className="aspect-[9/16] w-full object-cover opacity-80" />
+                <p className="absolute inset-x-0 bottom-0 bg-black/60 p-3 text-center text-xs text-white">Preview removed to save space. The full clip is on YouTube.</p>
+              </div>
+            : <div className="grid aspect-[9/16] place-items-center text-sm text-muted">No preview</div>}
       </div>
       <div className="min-w-0 space-y-3 p-5">
         <div className="flex flex-wrap items-center gap-2 pr-8">
